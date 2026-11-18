@@ -12,8 +12,6 @@ public final class Prefs {
     public static final String K_FUNCTION = "force_function"; // 强制能力位
     public static final String K_REDIRECT = "redirect_path";  // 路径重定向兜底
     public static final String K_SEEKBAR = "seekbar_stub";    // 滑块取色兜底
-    public static final String K_MASTER = "master_mode";      // 大师/视频LOG 模式注入
-
     private static XposedModule sModule;
     private static SharedPreferences sRemote;
     private static boolean sTried;
@@ -46,7 +44,4 @@ public final class Prefs {
 
     public static boolean redirectPath() { return get(K_REDIRECT, false); }
 
-    public static boolean seekbarStub() { return get(K_SEEKBAR, true); }
-
-    public static boolean masterMode() { return get(K_MASTER, true); }
-}
+    public static boolean seekbarStub() { return get(K_SEEKBAR, true); }}

@@ -28,7 +28,35 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v2.3 更新（当前版本）
+## v2.9 更新（当前版本）
+
+**新增第九层 hook：PaletteProcessUnitHook** —— 直接监控调色是否真的在跑。
+
+之前八层解决的是"能不能打开、能不能创建、LUT 纹理能不能建"，
+但调色是否生效取决于 `PaletteProcessUnit.processLut` 这条链：
+
+```java
+processLut(int,int,float,float,float,boolean) {
+    if (!ensureLutInited()) {          // ← 失败的日志
+        IPULog.e(..., "[palette] processLut, init failed");
+        return;                        // ← 直接退出，不调色
+    }
+    CombineLutProcessUnitSDK.process(...);
+    IPULog.i("[palette] processLut X, tone: ..., isHdr: ..., lut: ...");
+}
+```
+
+第九层把这三个方法的真实返回值打到我们自己的日志里：
+
+| 日志 | 含义 |
+|---|---|
+| `ensureLutInited() = false` | **LUT 初始化失败，palette 不会跑** |
+| `processLut ... -> float[0]` | **返回空数组，调色没产生数据** |
+| `processLut ... -> float[393216]` | 正常，调色在跑 |
+
+这样即使 IPULog 被 ROM 关掉，也能判断卡在哪一步。
+
+## v2.3 更新
 
 新增全链路自检脚本 `action.sh`。在 Magisk 管理器点「操作」按钮即输出四段诊断：
 
@@ -98,7 +126,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v2.3_allinone.zip
+release/palette_unlock_v2.9_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -112,8 +140,8 @@ release/palette_unlock_v2.3_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v2.3_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.3_allinone.zip'
+adb push palette_unlock_v2.9_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.9_allinone.zip'
 adb reboot
 ```
 

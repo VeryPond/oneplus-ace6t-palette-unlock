@@ -3,57 +3,97 @@ package com.palette.unlock;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 
 /**
  * 第四层：com.oplus.camera.common.utils.Lut3dDataManager
  *
- * 取证（classes.dex）：
- *   - 构造里读 CameraConfig.d("com.oplus.camera.basic.tone.lut.support", true, false) 赋给 mBasicToneLut（this.L）。
- *     this.L == false 时 f(int,int,String) 直接 return false，调色盘永远 init 不了。
- *   - f(int,int,String) 中 k0.i0(str) 为真时使用 6 参 init：
- *       mCombineLutHelper.init(mLmtPath, mOdtPath, mSettingPath, i10, i11, "/odm/etc/camera/basictone/palette")
- *   - k0.i0(str) 的条件是 CameraConfig.d("com.oplus.feature.color.palette.support", false, false)
- *     且 str ∈ {common, portrait, night}
+ * ===== 方法表（classes.dex，proto_ids 实测）=====
+ *   e (int, int, String) -> boolean    <-- 调色盘 LUT 初始化入口（真实名是 e，不是 f！）
+ *   f (String)           -> boolean    <-- 按 group 名查询
+ *   k (String)           -> void
+ *   n (String)           -> void
+ *   nativeLoadBinaryLutFile (String, boolean) -> float[]
+ *   ... 其余见 _filtersdk 审计输出
  *
- * 因此只要 CameraConfig 那一层强制 true，k0.i0 自然为真，调色盘分支就会走到。
- * 本类只做两件事：观测 + 兜底强制（若 this.L 因缓存仍为 false，则直接把字段写成 true）。
+ * ===== 早期版本的错误 =====
+ *   曾假设 f(int,int,String) 是初始化入口，实际签名是 f(String)；
+ *   真正的 (int,int,String) 方法是 e。签名不匹配导致 hook 从未生效。
+ *
+ * ===== 本 hook =====
+ *   1) hook e(int,int,String)：调原方法，若返回 false 则强制 true 并打日志
+ *   2) hook f(String)：仅观测，打前若干次日志
  */
 final class Lut3dHook {
     private static final String CLS = "com.oplus.camera.common.utils.Lut3dDataManager";
     private static int sLogged;
+    private static int sForced;
 
     private Lut3dHook() {}
 
     static void install(XposedModule module, ClassLoader cl) {
+        int n = 0;
         try {
             Class<?> cls = cl.loadClass(CLS);
             for (final Method m : cls.getDeclaredMethods()) {
-                if (!"f".equals(m.getName())) continue;
                 Class<?>[] p = m.getParameterTypes();
-                if (p.length != 3 || p[0] != int.class || p[1] != int.class || p[2] != String.class) continue;
-                if (m.getReturnType() != boolean.class) continue;
-                try {
-                    m.setAccessible(true);
-                    module.hook(m).intercept(new Lut3dHooker());
-                    XLog.i("Lut3dDataManager.f(int,int,String) hooked");
-                } catch (Throwable t) {
-                    XLog.w("hook Lut3d.f fail", t);
+                String nm = m.getName();
+                // 调色盘 init 入口：e(int, int, String) -> boolean
+                if ("e".equals(nm) && p.length == 3
+                        && p[0] == int.class && p[1] == int.class && p[2] == String.class
+                        && m.getReturnType() == boolean.class) {
+                    try {
+                        m.setAccessible(true);
+                        module.hook(m).intercept(new EHook());
+                        n++;
+                        XLog.i("hooked Lut3dDataManager.e(int,int,String)  <- 调色盘 init 入口");
+                    } catch (Throwable t) { XLog.w("hook Lut3d.e fail", t); }
+                    continue;
+                }
+                // 查询入口：f(String) -> boolean
+                if ("f".equals(nm) && p.length == 1 && p[0] == String.class
+                        && m.getReturnType() == boolean.class) {
+                    try {
+                        m.setAccessible(true);
+                        module.hook(m).intercept(new FHook());
+                        n++;
+                        XLog.i("hooked Lut3dDataManager.f(String)");
+                    } catch (Throwable t) { XLog.w("hook Lut3d.f fail", t); }
                 }
             }
         } catch (Throwable t) {
-            XLog.w("Lut3dHook skipped", t);
+            XLog.w("Lut3dHook skipped: " + t);
+        }
+        XLog.i("Lut3dHook installed=" + n);
+    }
+
+    /** e(int,int,String) — 调色盘 LUT 初始化，false 时强制 true */
+    static final class EHook implements XposedInterface.Hooker {
+        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+            Object r = chain.proceed();
+            boolean raw = r instanceof Boolean && (Boolean) r;
+            if (!raw) {
+                sForced++;
+                if (sForced <= 20) {
+                    XLog.i("Lut3d.e(mode=" + chain.getArg(0) + ", hdr=" + chain.getArg(1)
+                            + ", group=" + chain.getArg(2) + ") 原始=false -> 强制 true");
+                }
+                return Boolean.TRUE;
+            }
+            if (sLogged < 8) {
+                sLogged++;
+                XLog.i("Lut3d.e(mode=" + chain.getArg(0) + ", hdr=" + chain.getArg(1)
+                        + ", group=" + chain.getArg(2) + ") -> true");
+            }
+            return r;
         }
     }
 
-    static final class Lut3dHooker implements XposedInterface.Hooker {
+    /** f(String) — 仅观测 */
+    static final class FHook implements XposedInterface.Hooker {
+        private int c;
         @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
             Object r = chain.proceed();
-            if (sLogged < 12) {
-                sLogged++;
-                XLog.i("Lut3d.f(mode=" + chain.getArg(0) + ", hdr=" + chain.getArg(1)
-                        + ", group=" + chain.getArg(2) + ") -> " + r);
-            }
+            if (c++ < 8) XLog.i("Lut3d.f(" + chain.getArg(0) + ") -> " + r);
             return r;
         }
     }

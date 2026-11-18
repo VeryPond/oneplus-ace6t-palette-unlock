@@ -49,7 +49,9 @@ public class MainHook extends XposedModule {
         tryInstall("Lut3d", cl, 3);
         tryInstall("PathRedirect", cl, 4);
         tryInstall("PaletteSeekbarFix", cl, 5);
-        tryInstall("MasterMode", cl, 6);
+        tryInstall("FilterSdk", cl, 6);
+        tryInstall("IPUFeature", cl, 7);
+        tryInstall("PaletteProcessUnit", cl, 8);
 
         XLog.i("all hooks installed");
     }
@@ -68,8 +70,12 @@ public class MainHook extends XposedModule {
                 PathRedirectHook.install(this, cl);
             } else if (which == 5) {
                 PaletteSeekbarFixHook.install(this, cl);
-            } else {
-                MasterModeHook.install(this, cl);
+            } else if (which == 6) {
+                FilterSdkHook.install(this, cl);
+            } else if (which == 7) {
+                IPUFeatureHook.install(this, cl);
+            } else if (which == 8) {
+                PaletteProcessUnitHook.install(this, cl);
             }
         } catch (Throwable t) {
             XLog.w(name + " install fail", t);

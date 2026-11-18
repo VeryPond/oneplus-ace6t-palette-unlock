@@ -122,6 +122,22 @@ if [ -f "$MOD_SRC/post-fs-data.sh" ]; then
     cmp -s "$T/mod/system/odm/etc/camera/basictone/setting/$f" "$T/odm/etc/camera/basictone/setting/$f" 2>/dev/null && isame=$((isame+1))
   done
   ck "ini 内容一致数" "$isame" "4"
+  # LUT 数学一致性：从 ini 读 lut_size，校验文件大小 = lut_size^3 * 3 * 4
+  INI="$T/odm/etc/camera/basictone/setting/SimTool_Palette_Photo_Normal.ini"
+  if [ -f "$INI" ]; then
+    LS=$(grep -A3 '^\[SCLut\]' "$INI" | grep '^lut_size' | head -1 | sed 's/[^0-9]//g')
+    NUM=$(grep -A3 '^\[SCLut\]' "$INI" | grep '^SCLutNum' | head -1 | sed 's/[^0-9]//g')
+    if [ -n "$LS" ] && [ -n "$NUM" ]; then
+      expect=$((LS * LS * LS * 3 * 4))
+      actual=$(wc -c < "$T/odm/etc/camera/basictone/palette/HDR/SC16Lut0" 2>/dev/null | tr -d ' ')
+      ck "LUT 尺寸= lut_size^3*3*4" "$actual" "$expect"
+      # 实际文件数应等于 SCLutNum
+      cnt=$(find "$T/odm/etc/camera/basictone/palette/HDR" -name 'SC*Lut*' 2>/dev/null | wc -l | tr -d ' ')
+      ck "HDR LUT 个数= SCLutNum" "$cnt" "$NUM"
+    else
+      echo "  SKIP ini 里没解析到 lut_size/SCLutNum"
+    fi
+  fi
   rm -f "$T/mod/_pfd.sh"
 else
   echo "  SKIP 文件不存在"

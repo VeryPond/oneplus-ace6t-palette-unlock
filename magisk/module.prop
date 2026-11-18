@@ -1,6 +1,6 @@
 id=palette_unlock
 name=一加6T调色盘一体化
-version=v2.8
-versionCode=19
+version=v2.9
+versionCode=20
 author=VeryPond
 description=一键启用一加 Ace 6T 相机调色盘：自动安装无图标 LSPosed 模块 + 自动注册作用域 + 铺入 9 个官方 3D LUT。刷入后重启，Magisk 点「操作」可自检。由 DeepSeek Harness 生成。
