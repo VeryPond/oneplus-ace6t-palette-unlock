@@ -28,7 +28,18 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v2.2 更新（当前版本）
+## v2.3 更新（当前版本）
+
+新增全链路自检脚本 `action.sh`。在 Magisk 管理器点「操作」按钮即输出四段诊断：
+
+- **A. 资源层** —— 18 个 LUT 就位数 + SHA 与官方比对 + 4 个 ini
+- **B. 模块层** —— APK 是否安装、LSPosed 是否启用、作用域是否含相机
+- **C. 运行层** —— 每层 hook 的 installed 计数、强制生效记录
+- **D. 部署日志** —— 最近 8 行
+
+刷完后先跑这个，能直接定位问题在哪一层。
+
+## v2.2 更新
 
 修复 `FilterIpuAdapter` 的真实类名：`com.oplus.camera.filter.ipuadapter.FilterIpuAdapter`
 （此前误写成 `com.oplus.camera.filter.FilterIpuAdapter`，少一层 `ipuadapter.` 子包）。
@@ -87,7 +98,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v2.2_allinone.zip
+release/palette_unlock_v2.3_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -101,8 +112,8 @@ release/palette_unlock_v2.2_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v2.2_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.2_allinone.zip'
+adb push palette_unlock_v2.3_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.3_allinone.zip'
 adb reboot
 ```
 
