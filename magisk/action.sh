@@ -87,22 +87,44 @@ fi
 
 echo ""
 echo "【C. 资源部署（第十层 PathInject）】"
-CAMFILES="/data/data/com.oplus.camera/files/palette_unlock/basictone"
-if [ -d "$CAMFILES" ]; then
-  echo "  相机私有目录: 已创建"
-  hdr=$(ls "$CAMFILES/palette/HDR" 2>/dev/null | wc -l)
-  sdr=$(ls "$CAMFILES/palette/SDR" 2>/dev/null | wc -l)
-  ini=$(ls "$CAMFILES/setting" 2>/dev/null | grep -c -i palette)
-  echo "  palette/HDR: $hdr 个  palette/SDR: $sdr 个"
-  echo "  setting 下 palette ini: $ini 个"
-  if [ -f "$CAMFILES/palette/HDR/SC16Lut8" ]; then
-    sz=$(wc -c < "$CAMFILES/palette/HDR/SC16Lut8" 2>/dev/null | tr -d ' ')
-    echo "  SC16Lut8 尺寸: $sz (期望 49152)"
+# 相机私有目录可能因多用户/挂载方式不同而落在多个位置，逐个探测
+FOUND=""
+for base in \
+  /data/data/com.oplus.camera/files/palette_unlock/basictone \
+  /data/user/0/com.oplus.camera/files/palette_unlock/basictone \
+  /data/user_de/0/com.oplus.camera/files/palette_unlock/basictone ; do
+  if [ -d "$base" ]; then FOUND="$base"; break; fi
+done
+if [ -n "$FOUND" ]; then
+  echo "  相机私有目录: $FOUND"
+  # 逐项判断存在性，避免 ls 空目录与不存在混淆
+  for k in HDR SDR; do
+    d="$FOUND/palette/$k"
+    if [ -d "$d" ]; then
+      n=$(find "$d" -maxdepth 1 -name 'SC16Lut*' -type f 2>/dev/null | wc -l | tr -d ' ')
+      echo "  palette/$k: $n 个 LUT (期望 9)"
+    else
+      echo "  !! palette/$k 目录不存在"
+    fi
+  done
+  if [ -d "$FOUND/setting" ]; then
+    n=$(find "$FOUND/setting" -maxdepth 1 -name 'SimTool_Palette*' -o -name 'SimTool_Preview_Palette*' 2>/dev/null | wc -l | tr -d ' ')
+    echo "  setting 下 palette ini: $n 个 (期望 4)"
+  else
+    echo "  !! setting 目录不存在"
+  fi
+  if [ -f "$FOUND/palette/HDR/SC16Lut8" ]; then
+    sz=$(wc -c < "$FOUND/palette/HDR/SC16Lut8" 2>/dev/null | tr -d ' ')
+    if [ "$sz" = "49152" ]; then
+      echo "  SC16Lut8 尺寸: 49152 OK"
+    else
+      echo "  !! SC16Lut8 尺寸异常: $sz (期望 49152)"
+    fi
   else
     echo "  !! SC16Lut8 不存在 —— 部署可能失败"
   fi
 else
-  echo "  !! 相机私有目录尚未创建"
+  echo "  !! 相机私有目录不存在（三个候选位置都没有）"
   echo "     说明相机还没在模块生效后启动过，或 PathInjectHook 未挂上"
 fi
 

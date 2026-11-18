@@ -231,7 +231,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v3.4_allinone.zip
+release/palette_unlock_v3.5_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -245,8 +245,8 @@ release/palette_unlock_v3.4_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.4_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.4_allinone.zip'
+adb push palette_unlock_v3.5_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.5_allinone.zip'
 adb reboot
 ```
 
