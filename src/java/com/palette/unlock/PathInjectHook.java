@@ -116,7 +116,11 @@ final class PathInjectHook {
             sPalettePath = palette.getAbsolutePath();
             sOdtPath = odt.getAbsolutePath();
 
-            // ---- 1. 从模块 APK 的 assets 解出 palette LUT 与 ini ----
+            // ---- 1. 先把 /odm 的 setting 与 odt 复制过来（相机自己可读）----
+            int sys1 = copyTree(new java.io.File(ODM, "setting"), setting);
+            int sys2 = copyTree(new java.io.File(ODM, "odt"), odt);
+
+            // ---- 2. 再从模块 APK 的 assets 解出 palette LUT 与 ini（后写，确保 palette 配置以官方 LUT 包为准）----
             java.util.zip.ZipFile modZip = openModuleZip(module);
             int copied = 0;
             if (modZip != null) {
@@ -147,10 +151,6 @@ final class PathInjectHook {
             } else {
                 XLog.w("PathInject: 打不开模块 APK，无法解出 assets");
             }
-
-            // ---- 2. 把 /odm 的 setting 与 odt 复制过来（相机自己可读）----
-            int sys1 = copyTree(new java.io.File(ODM, "setting"), setting);
-            int sys2 = copyTree(new java.io.File(ODM, "odt"), odt);
 
             // ---- 3. ODT_Pre 兜底：缺它时用 ODT_Photo 顶替 ----
             java.io.File pre   = new java.io.File(odt, "ODT_Pre");
