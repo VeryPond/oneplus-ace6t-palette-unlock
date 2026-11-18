@@ -28,6 +28,24 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
+## v1.5 更新
+
+在上版基础上新增第 7 层 hook `FilterSdkHook`：强制 `AbstractFilterSdk.isInited()` 返回 `true`。
+
+**为什么**：底部「滤镜强度」滑条的回调 `onFilterIntensityChanged` 开头有道关卡——
+
+```java
+if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
+    ...
+}
+```
+
+本机型的调色盘是强开出来的，SDK 可能从未真正 init。若日志里出现
+`Xxx.isInited() 原始=false -> 强制 true`，即为此因。
+
+覆盖 6 个候选类（不存在则静默跳过）：`AncFilterSdk` / `IpuFilterSdk` /
+`FilterIpuAdapter` / `AbstractFilterSdk` / `GLFilterSdk` / `CpuFilterSdk`。
+
 ## v1.4 更新
 
 **修复了 LUT 数据损坏问题**：之前从 ROM 提取的 LUT4~8 是错误数据（含 `build.prop` 明文），导致调色效果异常。现已用官方 `fsck.erofs` 从一加15 完整 OTA 重新提取，9 个 LUT 全部校验通过。
@@ -43,7 +61,7 @@ PaletteRollingNumView                             id=palette_filter_strength_val
 ## 交付物
 
 ```
-release/palette_unlock_v1.4_allinone.zip
+release/palette_unlock_v1.5_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -57,8 +75,8 @@ release/palette_unlock_v1.4_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v1.4_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.4_allinone.zip'
+adb push palette_unlock_v1.5_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.5_allinone.zip'
 adb reboot
 ```
 
