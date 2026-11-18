@@ -34,6 +34,8 @@ final class CameraConfigHook {
                     m.setAccessible(true);
                     module.hook(m).intercept(new XposedInterface.Hooker() {
                         @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            // 配置查询是相机启动早期就会发生的，适合作为补挂时机
+                            PathInjectHook.retryInstallIfNeeded();
                             Object a0 = chain.getArg(0);
                             if (a0 instanceof String && Keys.forceTrueConfig((String) a0)) {
                                 sBool++;

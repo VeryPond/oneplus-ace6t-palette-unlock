@@ -28,7 +28,7 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.6 更新（当前版本）
+## v3.7 更新（当前版本）
 
 **这一版改变了根本思路。** 之前一直在往只读的 `/odm` 铺 LUT，
 但 **`CombineLutProcessUnitSDK.init` 收到的路径参数从来没变过**，
@@ -53,7 +53,8 @@ PaletteRollingNumView                             id=palette_filter_strength_val
 | v3.3 | `build_verify.py` + `action.sh` 五段自检 |
 | v3.4 | 部署前进程名校验 |
 | v3.5 | 自检脚本多路径探测 + 精确计数 |
-| **v3.6** | **部署顺序：先 /odm 后 assets，官方 ini 优先** |
+| v3.6 | 部署顺序：先 /odm 后 assets，官方 ini 优先 |
+| **v3.7** | **补挂重试 1 次 → 20 次，触发点从 2 个扩到 4 个** |
 
 ### 刷完先自检
 
@@ -68,7 +69,7 @@ adb shell su -c 'sh /data/adb/modules/palette_unlock/action.sh'
 ## 交付物
 
 ```
-release/palette_unlock_v3.6_allinone.zip
+release/palette_unlock_v3.7_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -82,8 +83,8 @@ release/palette_unlock_v3.6_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.6_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.6_allinone.zip'
+adb push palette_unlock_v3.7_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.7_allinone.zip'
 adb reboot
 ```
 

@@ -235,17 +235,18 @@ final class PathInjectHook {
 
     private static ClassLoader sCl;
     private static XposedModule sModule;
-    private static volatile boolean sRetried;
+    private static volatile int sRetries;
 
-    /** 供其它 hook 在关键时机调用，补挂 init。 */
+    /** 供其它 hook 在关键时机调用，补挂 init。最多重试 20 次。 */
     static void retryInstallIfNeeded() {
-        if (sHooked > 0 || sRetried || sCl == null) return;
-        sRetried = true;
+        if (sHooked > 0 || sRetries >= 20 || sCl == null) return;
+        sRetries++;
         int n = tryInstall();
         if (n > 0) {
-            XLog.i("PathInjectHook 延迟安装成功 installed=" + n);
-        } else {
-            XLog.w("PathInjectHook 延迟安装仍失败");
+            XLog.i("PathInjectHook 延迟安装成功 installed=" + n
+                    + " (第 " + sRetries + " 次尝试)");
+        } else if (sRetries <= 3 || sRetries % 5 == 0) {
+            XLog.w("PathInjectHook 延迟安装第 " + sRetries + " 次仍失败");
         }
     }
 

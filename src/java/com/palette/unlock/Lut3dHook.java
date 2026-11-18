@@ -69,7 +69,8 @@ final class Lut3dHook {
     /** e(int,int,String) — 调色盘 LUT 初始化，false 时强制 true */
     static final class EHook implements XposedInterface.Hooker {
         @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
-            Object r = chain.proceed();
+            PathInjectHook.retryInstallIfNeeded();
+                                Object r = chain.proceed();
             boolean raw = r instanceof Boolean && (Boolean) r;
             if (!raw) {
                 sForced++;
