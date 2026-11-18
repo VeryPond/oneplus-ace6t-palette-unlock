@@ -28,7 +28,53 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v2.9 更新（当前版本）
+## v3.1 更新（当前版本）—— 架构性修复
+
+**这一版改变了根本思路。** 之前 23 轮一直在往 `/odm` 铺 LUT，但 `/odm` 是只读分区，
+**路径参数没人改，相机根本读不到那些文件**。
+
+v3.1 改为参考已验证可行方案（X8CamUnlock，Find X8 上可用）的做法：
+
+### 1. 资源改放相机私有目录（第十层）
+
+```
+/data/data/com.oplus.camera/files/palette_unlock/basictone/
+├── palette/HDR/SC16Lut0..8
+├── palette/SDR/SC16Lut0..8
+├── setting/*.ini
+└── odt/
+```
+
+### 2. hook `init` 改写路径参数
+
+```java
+CombineLutProcessUnitSDK.init(String, String, String, int, int, String)
+  slot 1 = odt 目录
+  slot 2 = setting 目录
+  slot 5 = palette 目录
+```
+
+### 3. ODT 模式自动扫描
+
+遍历 `ODT={0,1}` 改写 ini 后尝试，找到返回 `code==0` 的组合。
+
+### 4. B3 能力位 9 个类全覆盖（第十一层）
+
+`key_support_palette` 在 6T 上分布在 9 个类的 `B3(String)` 里，
+X8CamUnlock 只挂 1 个（`ag.v`），6T 的混淆名不同，必须全挂。
+
+### 诊断日志
+
+```
+PathInject 部署成功: assets=26 系统setting=N 系统odt=N lut8=49152
+palette init 原始参数: [0]=lmt [1]=odt [2]=setting [3]=.. [4]=.. [5]=palette
+palette init 探测 odt=0 code=xxx
+palette init 成功！odt=N
+```
+
+三段日志即可定位卡在哪一步。
+
+## v2.9 更新
 
 **新增第九层 hook：PaletteProcessUnitHook** —— 直接监控调色是否真的在跑。
 
@@ -126,7 +172,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v2.9_allinone.zip
+release/palette_unlock_v3.1_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -140,8 +186,8 @@ release/palette_unlock_v2.9_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v2.9_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.9_allinone.zip'
+adb push palette_unlock_v3.1_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.1_allinone.zip'
 adb reboot
 ```
 

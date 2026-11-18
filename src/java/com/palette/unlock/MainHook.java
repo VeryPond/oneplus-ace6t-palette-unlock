@@ -52,6 +52,8 @@ public class MainHook extends XposedModule {
         tryInstall("FilterSdk", cl, 6);
         tryInstall("IPUFeature", cl, 7);
         tryInstall("PaletteProcessUnit", cl, 8);
+        tryInstall("PathInject", cl, 9);
+        tryInstall("SupportFlag", cl, 10);
 
         XLog.i("all hooks installed");
     }
@@ -76,6 +78,10 @@ public class MainHook extends XposedModule {
                 IPUFeatureHook.install(this, cl);
             } else if (which == 8) {
                 PaletteProcessUnitHook.install(this, cl);
+            } else if (which == 9) {
+                PathInjectHook.install(this, cl);
+            } else if (which == 10) {
+                SupportFlagHook.install(this, cl);
             }
         } catch (Throwable t) {
             XLog.w(name + " install fail", t);
