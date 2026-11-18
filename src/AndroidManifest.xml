@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.palette.unlock"
-    android:versionCode="1"
-    android:versionName="1.0">
+    android:versionCode="2"
+    android:versionName="1.1">
 
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
 
+    <!--
+        隐藏式 LSPosed 模块：
+        1) application 不设 android:icon（桌面无图标）
+        2) SettingsActivity 不挂 LAUNCHER intent-filter，改成普通 activity，
+           只能通过 LSPosed 管理器的「模块设置」入口打开
+        3) 用 tools:ignore 保持 aapt2 不告警
+    -->
     <application
         android:label="@string/app_name"
         android:allowBackup="false"
@@ -17,13 +24,14 @@
         <meta-data android:name="xposedscope" android:resource="@array/xposedscope" />
         <meta-data android:name="xposedsharedprefs" android:value="true" />
 
+        <!-- 不带 LAUNCHER 分类 = 桌面不出现图标；LSPosed 通过模块信息页启动它 -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
-            android:label="@string/app_name">
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.DeviceDefault.DayNight">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>

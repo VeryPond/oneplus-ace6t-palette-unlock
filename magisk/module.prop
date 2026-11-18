@@ -1,6 +1,6 @@
 id=palette_unlock
 name=一加6T调色盘一体化
-version=v1.1
-versionCode=2
+version=v1.2
+versionCode=3
 author=VeryPond
-description=一键启用一加 Ace 6T 相机调色盘：自动安装 LSPosed 模块 + 铺入 18 个官方 3D LUT。刷入后重启，在 LSPosed 中勾选 com.oplus.camera 作用域即可。由 DeepSeek Harness 生成。
+description=一键启用一加 Ace 6T 相机调色盘：自动安装无图标 LSPosed 模块 + 铺入 18 个官方 3D LUT。刷入后重启即可，桌面不会多出图标。由 DeepSeek Harness 生成。
