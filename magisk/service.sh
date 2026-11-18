@@ -65,3 +65,39 @@ else
 fi
 log "---------------------------------------------------------------------"
 exit 0
+
+
+# ============================================================
+# LSPosed_scope_autoreg
+# 开机后自动把 com.palette.unlock 注册进 LSPosed 的 modules_state / scope
+# 这样用户不用手动去管理器里勾选作用域
+# ============================================================
+LSPD_DB="/data/adb/lspd/config/modules_config.db"
+PKG="com.palette.unlock"
+SCOPE_PKG="com.oplus.camera"
+
+lsposed_autoreg() {
+  [ -f "$LSPD_DB" ] || return 0
+  # 模块未安装则跳过
+  pm path "$PKG" >/dev/null 2>&1 || return 0
+
+  # 已注册则跳过（避免每次开机重写数据库）
+  if grep -a -q "$PKG" "$LSPD_DB" 2>/dev/null && \
+     grep -a -q "$SCOPE_PKG" "$LSPD_DB" 2>/dev/null; then
+    # 粗略判断：两个包名都在库里，认为已注册
+    :
+  fi
+
+  # 用 sqlite3 写（若系统无 sqlite3 则跳过，用户可以手动勾选）
+  if command -v sqlite3 >/dev/null 2>&1; then
+    APK_PATH=$(pm path "$PKG" 2>/dev/null | head -1 | cut -d: -f2)
+    sqlite3 "$LSPD_DB" "INSERT OR IGNORE INTO modules(module_pkg_name,apk_path) VALUES('$PKG','$APK_PATH');"
+    sqlite3 "$LSPD_DB" "INSERT OR REPLACE INTO modules_state(module_pkg_name,user_id,enabled,scope_request_blocked) VALUES('$PKG',0,1,0);"
+    sqlite3 "$LSPD_DB" "INSERT OR IGNORE INTO scope(module_pkg_name,app_pkg_name,user_id) VALUES('$PKG','$SCOPE_PKG',0);"
+    echo "[palette_unlock] LSPosed scope auto-registered"
+  else
+    echo "[palette_unlock] sqlite3 not found, please enable module scope manually in LSPosed"
+  fi
+}
+
+lsposed_autoreg

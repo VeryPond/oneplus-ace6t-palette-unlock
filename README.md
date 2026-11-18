@@ -28,18 +28,41 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## 两个交付物
+## 交付物
+
+### 推荐：一键包
+
+```
+release/palette_unlock_v1.1_allinone.zip
+```
+
+刷入这一个 zip 即可，它会：
+
+1. 自动安装 LSPosed 模块 `PaletteUnlock.apk`
+2. 铺入 18 个官方 3D LUT + 4 个 ini 到 `/odm/etc/camera/basictone/`
+3. 尝试自动注册 LSPosed 作用域
+
+刷入后**硬重启**，若作用域未自动注册，在 LSPosed 管理器里给「调色盘强开」勾选
+`com.oplus.camera` 即可。
+
+### 分开装（进阶）
 
 | 文件 | 说明 |
 |---|---|
-| `release/PaletteUnlock_v1.0.apk` | LSPosed 模块：开关强开 + 打桩 |
-| `release/palette_unlock_magisk_v1.0.zip` | Magisk 模块：18 个 LUT + 4 个 ini |
+| `release/PaletteUnlock_v1.0.apk` | 仅 LSPosed 模块：开关强开 + 打桩 |
+| `release/palette_unlock_magisk_v1.0.zip` | 仅 Magisk 模块：18 个 LUT + 4 个 ini |
+
+想自己控制配置时用这个。
 
 ## 需要什么
 
 - 已解锁 BL 并 root（本项目在 KernelSU + Zygisk Next + LSPosed 上验证）
 - LSPosed 已正常工作（`system_server` 已注入）
 - 目标机型相机 APK 与本文一致或接近
+
+> **为什么还需要 LSPosed**：调色盘的「开关」和「缺失类」都在 Java 运行时层，
+> 只有 Xposed 系能在进程内改方法返回值。Magisk 只能做文件系统 overlay，
+> 碰不到运行时逻辑。一键包把两者打包在一起，但底层仍然需要 LSPosed 环境。
 
 ## 怎么工作
 

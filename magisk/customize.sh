@@ -43,6 +43,24 @@ if [ ! -d "$MODSRC" ]; then
   abort "! 安装包结构异常: 未找到 system/odm/etc/camera/basictone"
 fi
 
+# ---- 0. 自动安装 LSPosed 模块 APK ----
+ui_print "- 安装 LSPosed 模块 PaletteUnlock"
+if [ -f "$MODPATH/PaletteUnlock.apk" ]; then
+  # 先卸载旧版，避免签名不一致
+  pm uninstall com.palette.unlock >/dev/null 2>&1 || true
+  if pm install -r "$MODPATH/PaletteUnlock.apk" >/dev/null 2>&1; then
+    ui_print "  LSPosed 模块已安装"
+  else
+    ui_print "  ! APK 安装失败，请手动安装 $MODPATH/PaletteUnlock.apk"
+  fi
+  # APK 装完后从模块目录移除，省空间（保留在 /data/adb/palette_unlock/ 备查）
+  mkdir -p /data/adb/palette_unlock
+  cp -f "$MODPATH/PaletteUnlock.apk" /data/adb/palette_unlock/ 2>/dev/null || true
+  rm -f "$MODPATH/PaletteUnlock.apk"
+else
+  ui_print "  ! 模块内未找到 PaletteUnlock.apk"
+fi
+
 # ---- 1. 逐文件存在性 + LUT 尺寸校验 ----
 ui_print "- 校验资源完整性 ($EXPECT_COUNT 个文件, LUT 必须 = $LUT_SIZE 字节)"
 fail=0
