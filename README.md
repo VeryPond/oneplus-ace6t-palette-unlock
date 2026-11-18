@@ -1,0 +1,151 @@
+# 一加 Ace 6T（PLR110 / SM8845）相机调色盘强开
+
+> 本仓库由 DeepSeek Harness 生成。供研究与个人设备维护使用。改动有风险，务必先阅读回滚章节。
+
+针对 OnePlus Ace 6T 做了一件事：把这个机型 ROM 里**没有开放**的相机「调色盘（Palette）」功能打开，并在真机上验证可用。
+
+Ace 6T 的 `/odm/etc/camera/basictone/` 下**根本没有 `palette/` 目录**，相机 APK 里的调色盘代码也依赖两个本机型不存在的 SDK 类。所以这个仓库做的是三件事：
+
+1. 把一加 15 / GT8 Pro 那批官方 3D LUT 资源移植过来（Magisk 模块）
+2. 用 LSPosed 模块强制打开能力位，并**打桩**绕过缺失的两个类
+3. 在真机上验证调色盘界面与调色功能确实可用
+
+## 结果
+
+真机实测（PLR110 / ColorOS 17.0.0.101 / 相机 7.006.123）：
+
+| 项目 | 状态 |
+|---|---|
+| 调色盘入口 | 出现，可进入 |
+| 影调 / 饱和度 / 柔光 | 可调 |
+| 相机稳定性 | 不崩溃 |
+
+界面元素（`dumpsys activity top` 实测）：
+
+```
+PalettePanelView               {467,0-804,337}    id=palette_panel_view
+CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
+PaletteRollingNumView                             id=palette_filter_strength_value
+```
+
+## 两个交付物
+
+| 文件 | 说明 |
+|---|---|
+| `release/PaletteUnlock_v1.0.apk` | LSPosed 模块：开关强开 + 打桩 |
+| `release/palette_unlock_magisk_v1.0.zip` | Magisk 模块：18 个 LUT + 4 个 ini |
+
+## 需要什么
+
+- 已解锁 BL 并 root（本项目在 KernelSU + Zygisk Next + LSPosed 上验证）
+- LSPosed 已正常工作（`system_server` 已注入）
+- 目标机型相机 APK 与本文一致或接近
+
+## 怎么工作
+
+调色盘的总开关只有一个：
+
+```java
+// ja.k0#i0(String)
+if (CameraConfig.d("com.oplus.feature.color.palette.support", false, false)) {
+    return "common".equals(str) || "portrait".equals(str) || NIGHT.equals(str);
+}
+return false;
+```
+
+这个 key 为 false 时，下游全部走不到：`Lut3dDataManager` 不会加载 palette 路径，
+`getSupportFunction("key_support_palette")` 恒 false，UI 入口不生成。
+
+所以 LSPosed 模块分四层：
+
+| 层 | 目标 | 作用 |
+|---|---|---|
+| 1 | `CameraConfig` 所有 `static boolean(String,...)` | 强制 `color.palette.support` = true **【核心】** |
+| 2 | `BaseMode.getSupportFunction(String)` | 强制 `key_support_palette` = true；动态挂载，不硬编码子类名 |
+| 3 | `PaletteSeekbarColors.get/hasSeekbarColors` | 打桩，绕过缺失的 `PaletteSeekbarColorTable` |
+| 4 | `PaletteColors.get/hasPalette` | 打桩，绕过缺失的 `PaletteColorTable` **【决定成败】** |
+
+### 为什么第 3、4 层必须打桩
+
+这个机型的相机 APK 里，`ipusdk.processunit.filter.palette` 包下**四个类只有引用、没有定义**：
+
+```
+PaletteColorTable
+PaletteSeekbarColorTable
+PaletteColorRow
+PaletteSeekbarColorRow
+```
+
+开关一打开，代码走到 `PaletteColors.get()` 就抛 `NoClassDefFoundError`，相机直接闪退：
+
+```
+FATAL EXCEPTION: main
+java.lang.NoClassDefFoundError: Failed resolution of:
+  com.oplus.ocs.camera.ipusdk.processunit.filter.palette.PaletteColorTable
+    at PaletteColors.get(PaletteColors.java:1)
+    at cg.k.j(FilterEffectUIManager.java:20)
+    at ag.r.r1(FilterPresenter.java:22)
+```
+
+打桩后不再调用原方法，直接返回自造的 Recipe。
+
+### 一个容易踩的坑：Recipe 构造函数
+
+`PaletteColorRecipe` 在本机型上**没有** `(int[], float[])` 构造函数，
+只有这些：
+
+```
+(int[], int[])
+(int[], int[], int[])
+(int[], int[], int[], int[])
+(int[], float[], int[], float[])   <-- 实际使用
+(int[], [F, I, [I, [F, I, [I, [F, I, [I, [F, I)
+...
+```
+
+用错签名会导致 hook 静默失效（`NoSuchMethodException` 被 catch 吞掉），
+表现为「桩装上了但这个类还是崩」。
+
+## 文档
+
+| 文件 | 内容 |
+|---|---|
+| [docs/FINDINGS.md](docs/FINDINGS.md) | 逆向结论：开关链路、逐行源码引用 |
+| [docs/LUT.md](docs/LUT.md) | LUT 资源格式、来源、为什么 5~8 号是重复的 |
+| [docs/BUILD.md](docs/BUILD.md) | 模块怎么编译打包签名 |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | 怎么装、怎么验证、怎么排错 |
+| [docs/ROLLBACK.md](docs/ROLLBACK.md) | 怎么完全恢复原样 |
+| [docs/PITFALLS.md](docs/PITFALLS.md) | 踩过的所有坑 |
+| [docs/CREDITS.md](docs/CREDITS.md) | 参考项目与作者 |
+
+---
+
+## 目录
+
+```
+src/           LSPosed 模块源码（Java）
+magisk/        Magisk 模块源码
+release/       编好的交付包
+docs/          说明文档（见上表）
+tools/         构建与部署脚本
+assets/        从 ROM 提取的 LUT 与 ini
+```
+
+## 兼容性
+
+- 设备：OnePlus Ace 6T（`OP6117L1` / `PLR110`）
+- 固件：`PLR110_17.0.0.101(CN01)` / ColorOS V17.0.0
+- 平台：Snapdragon SM8845
+- 相机：`com.oplus.camera` 7.006.123
+
+一加 15 / GT8 Pro 的同批 LUT 资源理论上通用，但**本仓库只在 Ace 6T 上验证过**。
+
+## 已知限制
+
+- 只验证了 UI 与调色操作可用，**出片色彩准确性未逐项比对**
+- 依赖硬改开关 + 打桩，非常规路径，后续 OTA 可能失效
+- LUT 的 5~8 号在源 ROM 里就是重复内容，属官方原样
+
+## 许可
+
+仅供研究。刷机与改动风险自负。

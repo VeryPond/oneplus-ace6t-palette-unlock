@@ -1,0 +1,6 @@
+id=palette_unlock
+name=调色盘强开资源
+version=v1.0
+versionCode=1
+author=lead
+description=为 OPPO/一加 ColorOS17 相机铺入 /odm/etc/camera/basictone 调色盘资源（HDR/SDR 3D LUT + SimTool 配置），资源兜底与可替换用途。功能开关不在本模块，需配合 LSPosed 模块使用。

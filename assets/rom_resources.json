@@ -1,0 +1,142 @@
+[
+ {
+  "rel": "palette/HDR/SC16Lut0",
+  "size": 49152,
+  "sha256": "694f087ef1d1fa32723f84a932cd8e32ad36800f96a7cd25ad6365256e52da78"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut1",
+  "size": 49152,
+  "sha256": "ad281da87cc9ff59422fdc0107a364abf2102b336117f3f24f6d80967a17a8aa"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut2",
+  "size": 49152,
+  "sha256": "8da8aca255cb6895ea9fbf67db6e738d2dc7144dffba0d65432bbbceafbb0a42"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut3",
+  "size": 49152,
+  "sha256": "b72680c2af5f162837390a354e2ce71586b81be8f729dc6102a0a7cb9ea657da"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut4",
+  "size": 49152,
+  "sha256": "b053b86468fea0f1417af32ece1f99297338f3be0cd97578a1982d954ce83f5b"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut5",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut6",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut7",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/HDR/SC16Lut8",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut0",
+  "size": 49152,
+  "sha256": "694f087ef1d1fa32723f84a932cd8e32ad36800f96a7cd25ad6365256e52da78"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut1",
+  "size": 49152,
+  "sha256": "ad281da87cc9ff59422fdc0107a364abf2102b336117f3f24f6d80967a17a8aa"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut2",
+  "size": 49152,
+  "sha256": "8da8aca255cb6895ea9fbf67db6e738d2dc7144dffba0d65432bbbceafbb0a42"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut3",
+  "size": 49152,
+  "sha256": "b72680c2af5f162837390a354e2ce71586b81be8f729dc6102a0a7cb9ea657da"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut4",
+  "size": 49152,
+  "sha256": "b053b86468fea0f1417af32ece1f99297338f3be0cd97578a1982d954ce83f5b"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut5",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut6",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut7",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "palette/SDR/SC16Lut8",
+  "size": 49152,
+  "sha256": "97476050e86132920ec09824dd0d21e4096500116e397456e073b82a95599b98"
+ },
+ {
+  "rel": "setting/SimTool_Palette_Photo_Normal.ini",
+  "size": 613,
+  "sha256": "b3debbc9d846312dcc8dadabe9d27f6adcbfc36e14d818dd58e880e7ffb036ec"
+ },
+ {
+  "rel": "setting/SimTool_Palette_Photo_Portrait.ini",
+  "size": 613,
+  "sha256": "b3debbc9d846312dcc8dadabe9d27f6adcbfc36e14d818dd58e880e7ffb036ec"
+ },
+ {
+  "rel": "setting/SimTool_Palette_Photo_Night.ini",
+  "size": 613,
+  "sha256": "b3debbc9d846312dcc8dadabe9d27f6adcbfc36e14d818dd58e880e7ffb036ec"
+ },
+ {
+  "rel": "setting/SimTool_Preview_Palette_Normal.ini",
+  "size": 121,
+  "sha256": "bdd2965393a3438961a72d1376cef0ff4fe3f42a1c60b4daa64d27ab820d2306"
+ },
+ {
+  "rel": "setting/SimTool_Master.ini",
+  "size": 633,
+  "sha256": "2a39478c07ef2ced2f96bea1299b1dde93a91ffb089cc551d8cb4900f38aa86d"
+ },
+ {
+  "rel": "setting/SimTool_Dolby.ini",
+  "size": 674,
+  "sha256": "29dcf54ea0b340efc8cc7de626787cec9fe1ffa0011745bdb9d7aae82759cc75"
+ },
+ {
+  "rel": "setting/SimTool.ini",
+  "size": 448,
+  "sha256": "a1ba2b0cf76db9b4b6a0d277544502a71681b0e8ad7dd97baf2104a3f956b791"
+ },
+ {
+  "rel": "setting/SimTool_Photo_Master.ini",
+  "size": 668,
+  "sha256": "ba2f3926b2ea50c774664d09e0d9227a9547633c24ffc9c39145e3196a4bf814"
+ },
+ {
+  "rel": "setting/SimTool_Photo_Normal.ini",
+  "size": 676,
+  "sha256": "dcf9b8b5e0100964252c682a9ecc4e8710b13f6fb8e481a46d129323cff2cc2b"
+ },
+ {
+  "rel": "setting/FromXml",
+  "size": 16,
+  "sha256": "e52449e329e99417fc9d684e06ba65f0720ef8c22899c89f6099ffc172fbfe59"
+ }
+]
