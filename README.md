@@ -28,6 +28,26 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
+## v2.1 更新（当前版本）
+
+本轮做了两件大事：
+
+### A. 修复 5 处从未生效的 hook
+
+用 `method_ids` → `proto_ids` 逐层核对真实签名后发现：
+
+| 层 | 问题 | 修复 |
+|---|---|---|
+| 3 Lut3d | 找 `f(int,int,String)`，真名是 `e` | v2.0 |
+| 5 FilterSdk | 类名少一层子包 | v2.0 |
+| 8 IPUFeature | 签名猜成 `(Class)` | v1.9 |
+| 2 SupportFunction | 只挂基类 | v1.7 |
+| 4 CameraParameter | 完全是空壳 | v1.6 |
+
+### B. 修复部署脚本不覆盖 palette
+
+原 `post-fs-data.sh` 遇到同名不同内容文件会"保留 ROM 原版"，这对 palette 资源是错误的。v2.1 改为强制覆盖。
+
 ## v1.5 更新
 
 在上版基础上新增第 7 层 hook `FilterSdkHook`：强制 `AbstractFilterSdk.isInited()` 返回 `true`。
@@ -61,7 +81,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v1.5_allinone.zip
+release/palette_unlock_v2.1_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -75,8 +95,8 @@ release/palette_unlock_v1.5_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v1.5_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.5_allinone.zip'
+adb push palette_unlock_v2.1_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.1_allinone.zip'
 adb reboot
 ```
 
