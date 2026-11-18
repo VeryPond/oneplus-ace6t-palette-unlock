@@ -28,7 +28,13 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v2.1 更新（当前版本）
+## v2.2 更新（当前版本）
+
+修复 `FilterIpuAdapter` 的真实类名：`com.oplus.camera.filter.ipuadapter.FilterIpuAdapter`
+（此前误写成 `com.oplus.camera.filter.FilterIpuAdapter`，少一层 `ipuadapter.` 子包）。
+它在 classes7.dex，是 `IPUClient.createFeature` 的实际调用者。
+
+## v2.1 更新
 
 本轮做了两件大事：
 
@@ -81,7 +87,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v2.1_allinone.zip
+release/palette_unlock_v2.2_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -95,8 +101,8 @@ release/palette_unlock_v2.1_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v2.1_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.1_allinone.zip'
+adb push palette_unlock_v2.2_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v2.2_allinone.zip'
 adb reboot
 ```
 
