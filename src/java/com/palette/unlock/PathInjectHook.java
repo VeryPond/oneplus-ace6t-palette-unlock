@@ -210,13 +210,44 @@ final class PathInjectHook {
 
     /** 安装路径重定向 hook。 */
     static void install(XposedModule module, ClassLoader cl) {
+        sCl = cl;
+        sModule = module;
+        int n = tryInstall();
+        if (n == 0) {
+            XLog.w("PathInjectHook: 首次安装失败（SDK 可能尚未加载），"
+                    + "将在 createFeature / processImage 触发时重试");
+        } else {
+            XLog.i("PathInjectHook installed=" + n
+                    + " (目标签名 init(String,String,String,int,int,String)->int)");
+        }
+    }
+
+    private static ClassLoader sCl;
+    private static XposedModule sModule;
+    private static volatile boolean sRetried;
+
+    /** 供其它 hook 在关键时机调用，补挂 init。 */
+    static void retryInstallIfNeeded() {
+        if (sHooked > 0 || sRetried || sCl == null) return;
+        sRetried = true;
+        int n = tryInstall();
+        if (n > 0) {
+            XLog.i("PathInjectHook 延迟安装成功 installed=" + n);
+        } else {
+            XLog.w("PathInjectHook 延迟安装仍失败");
+        }
+    }
+
+    private static int sHooked;
+
+    private static int tryInstall() {
+        if (sHooked > 0) return sHooked;
         int n = 0;
-        // ---- 主目标：CombineLutProcessUnitSDK.init ----
-        n += hookInit(module, cl,
+        n += hookInit(sModule, sCl,
                 "com.oplus.ocs.camera.ipusdk.processunit.combinelut.CombineLutProcessUnitSDK");
-        // ---- 备选：CombineLutHelper.init（老路径）----
-        n += hookInit(module, cl, "com.oplus.ocs.camera.CombineLutHelper");
-        XLog.i("PathInjectHook installed=" + n + " (目标签名 init(String,String,String,int,int,String)->int)");
+        n += hookInit(sModule, sCl, "com.oplus.ocs.camera.CombineLutHelper");
+        sHooked = n;
+        return n;
     }
 
     private static int hookInit(XposedModule module, ClassLoader cl, String clsName) {
@@ -416,18 +447,44 @@ final class PathInjectHook {
         } finally { in.close(); }
     }
 
+    /**
+     * 拿到当前进程的 Application（三级回退）。
+     * 第三级用 AppGlobals.getInitialApplication()，在极早期时机更可靠。
+     */
     private static Object currentApplication() {
+        // 1) ActivityThread.currentApplication()
         try {
             Class<?> at = Class.forName("android.app.ActivityThread");
             try {
                 Object app = at.getMethod("currentApplication").invoke(null);
                 if (app != null) return app;
             } catch (Throwable ignored) {}
-            Object thread = at.getMethod("currentActivityThread").invoke(null);
-            if (thread == null) return null;
-            return at.getMethod("getApplication").invoke(thread);
-        } catch (Throwable t) {
-            return null;
-        }
+            // 2) ActivityThread.currentActivityThread().getApplication()
+            try {
+                Object th = at.getMethod("currentActivityThread").invoke(null);
+                if (th != null) {
+                    Object app = at.getMethod("getApplication").invoke(th);
+                    if (app != null) return app;
+                }
+            } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {}
+        // 3) AppGlobals.getInitialApplication()
+        try {
+            Class<?> ag = Class.forName("android.app.AppGlobals");
+            Object app = ag.getMethod("getInitialApplication").invoke(null);
+            if (app != null) return app;
+        } catch (Throwable ignored) {}
+        // 4) ActivityThread 的 mInitialApplication 字段
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object th = at.getMethod("currentActivityThread").invoke(null);
+            if (th != null) {
+                java.lang.reflect.Field f = at.getDeclaredField("mInitialApplication");
+                f.setAccessible(true);
+                Object app = f.get(th);
+                if (app != null) return app;
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 }

@@ -28,7 +28,53 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.1 更新（当前版本）—— 架构性修复
+## v3.3 更新（当前版本）
+
+在 v3.1 基础上修了两个运行时缺陷 + 加了两套自动校验。
+
+### 修复 1：hook 时机太早
+
+`CombineLutProcessUnitSDK` 由动态 ClassLoader 加载，
+`onPackageLoaded` 时可能还不存在。v3.3 加了延迟补挂：
+
+```java
+// 在这三处触发重试
+PaletteProcessUnitHook.ensureLutInited  → retryInstallIfNeeded()
+IPUFeatureHook.createFeature            → retryInstallIfNeeded()
+```
+
+### 修复 2：currentApplication() 返回 null
+
+从 2 级回退扩到 4 级：
+```
+① ActivityThread.currentApplication()
+② ActivityThread.currentActivityThread().getApplication()
+③ AppGlobals.getInitialApplication()
+④ ActivityThread.mInitialApplication 字段
+```
+
+### 新增：构建自校验
+
+```bash
+python tools/build_verify.py --base <base.apk> --dex <new.dex> --out <out.apk> \
+    --expect-dex 46288 --require-class PathInjectHook --expect-assets 14
+```
+
+会拦截「用了残留旧文件导致产物 dex 不对」这类问题。
+
+### 新增：五段自检
+
+`action.sh` 现在检查 A 资源层 / B 模块层 / **C 相机私有目录部署** / D hook 日志 / E 部署日志。
+
+C 段直接告诉你 PathInjectHook 有没有工作：
+
+```
+palette/HDR: 9 个  palette/SDR: 9 个
+setting 下 palette ini: 4 个
+SC16Lut8 尺寸: 49152 (期望 49152)
+```
+
+## v3.1 更新—— 架构性修复
 
 **这一版改变了根本思路。** 之前 23 轮一直在往 `/odm` 铺 LUT，但 `/odm` 是只读分区，
 **路径参数没人改，相机根本读不到那些文件**。
@@ -172,7 +218,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v3.1_allinone.zip
+release/palette_unlock_v3.3_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -186,8 +232,8 @@ release/palette_unlock_v3.1_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.1_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.1_allinone.zip'
+adb push palette_unlock_v3.3_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.3_allinone.zip'
 adb reboot
 ```
 

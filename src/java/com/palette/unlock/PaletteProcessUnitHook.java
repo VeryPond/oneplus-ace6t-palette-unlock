@@ -60,6 +60,8 @@ final class PaletteProcessUnitHook {
                         module.hook(m).intercept(new XposedInterface.Hooker() {
                             @Override public Object intercept(XposedInterface.Chain chain)
                                     throws Throwable {
+                                // 这里说明 SDK 已加载，补挂可能失败的 PathInject
+                                PathInjectHook.retryInstallIfNeeded();
                                 Object r = chain.proceed();
                                 boolean ok = Boolean.TRUE.equals(r);
                                 sEnsureCalls++;

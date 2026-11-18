@@ -55,6 +55,8 @@ final class IPUFeatureHook {
                                 Object a1 = chain.getArg(1);
                                 String cn = a1 instanceof Class ? ((Class<?>) a1).getName() : "";
                                 boolean isPalette = cn.contains("PaletteProcessUnit");
+                                // 相机已经要求创建 ProcessUnit，说明 SDK 已加载
+                                PathInjectHook.retryInstallIfNeeded();
                                 if (isPalette) {
                                     XLog.i("createFeature(" + cn.substring(cn.lastIndexOf('.') + 1) + ") 被调用");
                                 }

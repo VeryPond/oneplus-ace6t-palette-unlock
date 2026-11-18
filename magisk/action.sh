@@ -86,7 +86,28 @@ else
 fi
 
 echo ""
-echo "【C. 运行层 hook 日志】"
+echo "【C. 资源部署（第十层 PathInject）】"
+CAMFILES="/data/data/com.oplus.camera/files/palette_unlock/basictone"
+if [ -d "$CAMFILES" ]; then
+  echo "  相机私有目录: 已创建"
+  hdr=$(ls "$CAMFILES/palette/HDR" 2>/dev/null | wc -l)
+  sdr=$(ls "$CAMFILES/palette/SDR" 2>/dev/null | wc -l)
+  ini=$(ls "$CAMFILES/setting" 2>/dev/null | grep -c -i palette)
+  echo "  palette/HDR: $hdr 个  palette/SDR: $sdr 个"
+  echo "  setting 下 palette ini: $ini 个"
+  if [ -f "$CAMFILES/palette/HDR/SC16Lut8" ]; then
+    sz=$(wc -c < "$CAMFILES/palette/HDR/SC16Lut8" 2>/dev/null | tr -d ' ')
+    echo "  SC16Lut8 尺寸: $sz (期望 49152)"
+  else
+    echo "  !! SC16Lut8 不存在 —— 部署可能失败"
+  fi
+else
+  echo "  !! 相机私有目录尚未创建"
+  echo "     说明相机还没在模块生效后启动过，或 PathInjectHook 未挂上"
+fi
+
+echo ""
+echo "【D. 运行层 hook 日志】"
 if [ -f "$HOOK_LOG" ]; then
   echo "  -- 各层 installed 计数 --"
   grep -E 'Hook (done|installed)|installed=' "$HOOK_LOG" 2>/dev/null | tail -12 | sed 's/^/    /'
@@ -101,7 +122,7 @@ else
 fi
 
 echo ""
-echo "【D. 资源部署日志】"
+echo "【E. 资源部署日志】"
 tail -n 8 "$RES_LOG" 2>/dev/null | sed 's/^/  /' || echo "  (无)"
 
 echo ""
