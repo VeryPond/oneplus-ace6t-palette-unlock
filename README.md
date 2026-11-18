@@ -28,7 +28,20 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.3 更新（当前版本）
+## v3.4 更新（当前版本）
+
+新增进程名校验——部署前确认当前进程确实是相机：
+
+```
+PathInject: 当前进程 = com.oplus.camera  filesDir = /data/data/com.oplus.camera/files
+```
+
+如果进程名不含 `com.oplus.camera`，日志会警告，避免部署到错误目录。
+
+同时本版全部构建走 `tools/build_verify.py`，签名后再次 `--verify-only` 校验，
+确保产物 dex 大小、必需类、assets 数量、LUT SHA 全部正确。
+
+## v3.3 更新
 
 在 v3.1 基础上修了两个运行时缺陷 + 加了两套自动校验。
 
@@ -218,7 +231,7 @@ if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
 ## 交付物
 
 ```
-release/palette_unlock_v3.3_allinone.zip
+release/palette_unlock_v3.4_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -232,8 +245,8 @@ release/palette_unlock_v3.3_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.3_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.3_allinone.zip'
+adb push palette_unlock_v3.4_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.4_allinone.zip'
 adb reboot
 ```
 

@@ -90,6 +90,17 @@ final class PathInjectHook {
                 XLog.w("PathInject: getFilesDir() = null");
                 return false;
             }
+            // 诊断：确认当前进程确实是相机，避免部署到错误目录
+            try {
+                String procName = currentProcessName();
+                XLog.i("PathInject: 当前进程 = " + procName
+                        + "  filesDir = " + filesDir.getAbsolutePath());
+                if (procName != null && !procName.contains("com.oplus.camera")) {
+                    XLog.w("PathInject: 进程名不含 com.oplus.camera，"
+                            + "部署位置可能不对（仍继续尝试）");
+                }
+            } catch (Throwable ignored) {}
+
             java.io.File root = new java.io.File(filesDir, ROOT_NAME);
             java.io.File setting = new java.io.File(root, "setting");
             java.io.File palette = new java.io.File(root, "palette");
@@ -451,6 +462,34 @@ final class PathInjectHook {
      * 拿到当前进程的 Application（三级回退）。
      * 第三级用 AppGlobals.getInitialApplication()，在极早期时机更可靠。
      */
+    /** 取当前进程名，用于确认部署位置是否正确。 */
+    private static String currentProcessName() {
+        try {
+            // API 28+: Application.getProcessName()
+            Object app = currentApplication();
+            if (app != null) {
+                try {
+                    Object n = app.getClass().getMethod("getProcessName").invoke(app);
+                    if (n instanceof String) return (String) n;
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+        try {
+            // 兜底：读 /proc/self/cmdline
+            java.io.FileInputStream in = new java.io.FileInputStream("/proc/self/cmdline");
+            try {
+                byte[] b = new byte[128];
+                int r = in.read(b);
+                if (r > 0) {
+                    int end = 0;
+                    while (end < r && b[end] != 0) end++;
+                    return new String(b, 0, end, "UTF-8");
+                }
+            } finally { in.close(); }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     private static Object currentApplication() {
         // 1) ActivityThread.currentApplication()
         try {
