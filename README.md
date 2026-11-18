@@ -28,205 +28,42 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.4 更新（当前版本）
+## v3.6 更新（当前版本）
 
-新增进程名校验——部署前确认当前进程确实是相机：
+**这一版改变了根本思路。** 之前一直在往只读的 `/odm` 铺 LUT，
+但 **`CombineLutProcessUnitSDK.init` 收到的路径参数从来没变过**，
+相机根本不会去读那些文件。
 
-```
-PathInject: 当前进程 = com.oplus.camera  filesDir = /data/data/com.oplus.camera/files
-```
+现在参考已验证可行的方案（X8CamUnlock，Find X8 上可用）：
 
-如果进程名不含 `com.oplus.camera`，日志会警告，避免部署到错误目录。
+| # | 做法 |
+|---|---|
+| 1 | 资源放**相机私有目录** `/data/data/com.oplus.camera/files/palette_unlock/basictone/` |
+| 2 | hook `init` 改写路径参数（slot 1=odt / 2=setting / 5=palette） |
+| 3 | 扫描 `ODT={0,1}` 找可用组合 |
+| 4 | 9 个 `B3(String)` 类强制 `key_support_palette = true` |
 
-同时本版全部构建走 `tools/build_verify.py`，签名后再次 `--verify-only` 校验，
-确保产物 dex 大小、必需类、assets 数量、LUT SHA 全部正确。
+### 版本演进
 
-## v3.3 更新
+| 版本 | 关键改动 |
+|---|---|
+| v3.0 | 路径重定向（第十层） |
+| v3.1 | ODT 扫描 + B3 全域（第十一层） |
+| v3.2 | 延迟加载重试 + 4 级 Application 回退 |
+| v3.3 | `build_verify.py` + `action.sh` 五段自检 |
+| v3.4 | 部署前进程名校验 |
+| v3.5 | 自检脚本多路径探测 + 精确计数 |
+| **v3.6** | **部署顺序：先 /odm 后 assets，官方 ini 优先** |
 
-在 v3.1 基础上修了两个运行时缺陷 + 加了两套自动校验。
-
-### 修复 1：hook 时机太早
-
-`CombineLutProcessUnitSDK` 由动态 ClassLoader 加载，
-`onPackageLoaded` 时可能还不存在。v3.3 加了延迟补挂：
-
-```java
-// 在这三处触发重试
-PaletteProcessUnitHook.ensureLutInited  → retryInstallIfNeeded()
-IPUFeatureHook.createFeature            → retryInstallIfNeeded()
-```
-
-### 修复 2：currentApplication() 返回 null
-
-从 2 级回退扩到 4 级：
-```
-① ActivityThread.currentApplication()
-② ActivityThread.currentActivityThread().getApplication()
-③ AppGlobals.getInitialApplication()
-④ ActivityThread.mInitialApplication 字段
-```
-
-### 新增：构建自校验
+### 刷完先自检
 
 ```bash
-python tools/build_verify.py --base <base.apk> --dex <new.dex> --out <out.apk> \
-    --expect-dex 46288 --require-class PathInjectHook --expect-assets 14
+adb shell su -c 'sh /data/adb/modules/palette_unlock/action.sh'
 ```
 
-会拦截「用了残留旧文件导致产物 dex 不对」这类问题。
+**C 段最关键**，直接告诉你第十层有没有工作。
 
-### 新增：五段自检
-
-`action.sh` 现在检查 A 资源层 / B 模块层 / **C 相机私有目录部署** / D hook 日志 / E 部署日志。
-
-C 段直接告诉你 PathInjectHook 有没有工作：
-
-```
-palette/HDR: 9 个  palette/SDR: 9 个
-setting 下 palette ini: 4 个
-SC16Lut8 尺寸: 49152 (期望 49152)
-```
-
-## v3.1 更新—— 架构性修复
-
-**这一版改变了根本思路。** 之前 23 轮一直在往 `/odm` 铺 LUT，但 `/odm` 是只读分区，
-**路径参数没人改，相机根本读不到那些文件**。
-
-v3.1 改为参考已验证可行方案（X8CamUnlock，Find X8 上可用）的做法：
-
-### 1. 资源改放相机私有目录（第十层）
-
-```
-/data/data/com.oplus.camera/files/palette_unlock/basictone/
-├── palette/HDR/SC16Lut0..8
-├── palette/SDR/SC16Lut0..8
-├── setting/*.ini
-└── odt/
-```
-
-### 2. hook `init` 改写路径参数
-
-```java
-CombineLutProcessUnitSDK.init(String, String, String, int, int, String)
-  slot 1 = odt 目录
-  slot 2 = setting 目录
-  slot 5 = palette 目录
-```
-
-### 3. ODT 模式自动扫描
-
-遍历 `ODT={0,1}` 改写 ini 后尝试，找到返回 `code==0` 的组合。
-
-### 4. B3 能力位 9 个类全覆盖（第十一层）
-
-`key_support_palette` 在 6T 上分布在 9 个类的 `B3(String)` 里，
-X8CamUnlock 只挂 1 个（`ag.v`），6T 的混淆名不同，必须全挂。
-
-### 诊断日志
-
-```
-PathInject 部署成功: assets=26 系统setting=N 系统odt=N lut8=49152
-palette init 原始参数: [0]=lmt [1]=odt [2]=setting [3]=.. [4]=.. [5]=palette
-palette init 探测 odt=0 code=xxx
-palette init 成功！odt=N
-```
-
-三段日志即可定位卡在哪一步。
-
-## v2.9 更新
-
-**新增第九层 hook：PaletteProcessUnitHook** —— 直接监控调色是否真的在跑。
-
-之前八层解决的是"能不能打开、能不能创建、LUT 纹理能不能建"，
-但调色是否生效取决于 `PaletteProcessUnit.processLut` 这条链：
-
-```java
-processLut(int,int,float,float,float,boolean) {
-    if (!ensureLutInited()) {          // ← 失败的日志
-        IPULog.e(..., "[palette] processLut, init failed");
-        return;                        // ← 直接退出，不调色
-    }
-    CombineLutProcessUnitSDK.process(...);
-    IPULog.i("[palette] processLut X, tone: ..., isHdr: ..., lut: ...");
-}
-```
-
-第九层把这三个方法的真实返回值打到我们自己的日志里：
-
-| 日志 | 含义 |
-|---|---|
-| `ensureLutInited() = false` | **LUT 初始化失败，palette 不会跑** |
-| `processLut ... -> float[0]` | **返回空数组，调色没产生数据** |
-| `processLut ... -> float[393216]` | 正常，调色在跑 |
-
-这样即使 IPULog 被 ROM 关掉，也能判断卡在哪一步。
-
-## v2.3 更新
-
-新增全链路自检脚本 `action.sh`。在 Magisk 管理器点「操作」按钮即输出四段诊断：
-
-- **A. 资源层** —— 18 个 LUT 就位数 + SHA 与官方比对 + 4 个 ini
-- **B. 模块层** —— APK 是否安装、LSPosed 是否启用、作用域是否含相机
-- **C. 运行层** —— 每层 hook 的 installed 计数、强制生效记录
-- **D. 部署日志** —— 最近 8 行
-
-刷完后先跑这个，能直接定位问题在哪一层。
-
-## v2.2 更新
-
-修复 `FilterIpuAdapter` 的真实类名：`com.oplus.camera.filter.ipuadapter.FilterIpuAdapter`
-（此前误写成 `com.oplus.camera.filter.FilterIpuAdapter`，少一层 `ipuadapter.` 子包）。
-它在 classes7.dex，是 `IPUClient.createFeature` 的实际调用者。
-
-## v2.1 更新
-
-本轮做了两件大事：
-
-### A. 修复 5 处从未生效的 hook
-
-用 `method_ids` → `proto_ids` 逐层核对真实签名后发现：
-
-| 层 | 问题 | 修复 |
-|---|---|---|
-| 3 Lut3d | 找 `f(int,int,String)`，真名是 `e` | v2.0 |
-| 5 FilterSdk | 类名少一层子包 | v2.0 |
-| 8 IPUFeature | 签名猜成 `(Class)` | v1.9 |
-| 2 SupportFunction | 只挂基类 | v1.7 |
-| 4 CameraParameter | 完全是空壳 | v1.6 |
-
-### B. 修复部署脚本不覆盖 palette
-
-原 `post-fs-data.sh` 遇到同名不同内容文件会"保留 ROM 原版"，这对 palette 资源是错误的。v2.1 改为强制覆盖。
-
-## v1.5 更新
-
-在上版基础上新增第 7 层 hook `FilterSdkHook`：强制 `AbstractFilterSdk.isInited()` 返回 `true`。
-
-**为什么**：底部「滤镜强度」滑条的回调 `onFilterIntensityChanged` 开头有道关卡——
-
-```java
-if (AbstractFilterSdk.isInited()) {  // 未初始化就直接 return
-    ...
-}
-```
-
-本机型的调色盘是强开出来的，SDK 可能从未真正 init。若日志里出现
-`Xxx.isInited() 原始=false -> 强制 true`，即为此因。
-
-覆盖 6 个候选类（不存在则静默跳过）：`AncFilterSdk` / `IpuFilterSdk` /
-`FilterIpuAdapter` / `AbstractFilterSdk` / `GLFilterSdk` / `CpuFilterSdk`。
-
-## v1.4 更新
-
-**修复了 LUT 数据损坏问题**：之前从 ROM 提取的 LUT4~8 是错误数据（含 `build.prop` 明文），导致调色效果异常。现已用官方 `fsck.erofs` 从一加15 完整 OTA 重新提取，9 个 LUT 全部校验通过。
-
-| LUT | 旧（损坏） | 新（正确） |
-|---|---|---|
-| 4 | `b053b864` | `45c26b24` |
-| 5 | `97476050` | `fd4d798a` |
-| 6 | `97476050` | `f3a77390` |
-| 7 | `97476050` | `7265cf25` |
-| 8 | `97476050` | `38496c97` |
+详细步骤见 **[docs/VERIFY.md](docs/VERIFY.md)**（真机验证手册）。
 
 ## 交付物
 
@@ -355,6 +192,8 @@ java.lang.NoClassDefFoundError: Failed resolution of:
 
 | 文件 | 内容 |
 |---|---|
+| **[docs/VERIFY.md](docs/VERIFY.md)** | **真机验证手册（10 分钟完整流程）** |
+| **[docs/PALETTE_ANALYSIS.md](docs/PALETTE_ANALYSIS.md)** | **完整逆向分析报告（40 轮）** |
 | [docs/FINDINGS.md](docs/FINDINGS.md) | 逆向结论：开关链路、逐行源码引用 |
 | [docs/LUT.md](docs/LUT.md) | LUT 资源格式、来源、为什么 5~8 号是重复的 |
 | [docs/BUILD.md](docs/BUILD.md) | 模块怎么编译打包签名 |
