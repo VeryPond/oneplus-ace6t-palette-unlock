@@ -28,10 +28,22 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
+## v1.4 更新
+
+**修复了 LUT 数据损坏问题**：之前从 ROM 提取的 LUT4~8 是错误数据（含 `build.prop` 明文），导致调色效果异常。现已用官方 `fsck.erofs` 从一加15 完整 OTA 重新提取，9 个 LUT 全部校验通过。
+
+| LUT | 旧（损坏） | 新（正确） |
+|---|---|---|
+| 4 | `b053b864` | `45c26b24` |
+| 5 | `97476050` | `fd4d798a` |
+| 6 | `97476050` | `f3a77390` |
+| 7 | `97476050` | `7265cf25` |
+| 8 | `97476050` | `38496c97` |
+
 ## 交付物
 
 ```
-release/palette_unlock_v1.2_allinone.zip
+release/palette_unlock_v1.4_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -45,8 +57,8 @@ release/palette_unlock_v1.2_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v1.2_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.2_allinone.zip'
+adb push palette_unlock_v1.4_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.4_allinone.zip'
 adb reboot
 ```
 
