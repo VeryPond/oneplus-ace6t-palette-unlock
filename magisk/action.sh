@@ -21,7 +21,10 @@ SCOPE="com.oplus.camera"
 LUT_SHA="694f087ef1d1 ad281da87cc9 8da8aca255cb b72680c2af5f 45c26b247cc6 fd4d798a6840 f3a7739006e1 7265cf25cfd3 38496c97d641"
 
 echo "=================================="
-echo " palette_unlock 全链路自检 v2.2"
+MODDIR_A="${0%/*}"
+[ -z "$MODDIR_A" ] || [ "$MODDIR_A" = "$0" ] && MODDIR_A="/data/adb/modules/palette_unlock"
+MODVER_A=$(grep '^version=' "$MODDIR_A/module.prop" 2>/dev/null | cut -d= -f2)
+echo " palette_unlock 全链路自检 ${MODVER_A:-unknown}"
 echo "=================================="
 
 echo ""

@@ -98,11 +98,29 @@ deploy_one() {
     return 0
   fi
 
+  # 调色盘相关资源一律强制覆盖：本模块的存在意义就是补/改这些文件，
+  # 保留 ROM 原版会导致调色盘仍不可用（6T 的 setting 里本来没有 palette ini，
+  # 若某些 ROM 版本意外存在旧版也必须换成官方正确版）。
+  case "$rel" in
+    palette/*|setting/*Palette*)
+      if [ -f "$dst" ] && ! same_file "$src" "$dst"; then
+        dsz=$(fsize "$dst")
+        log "OVERWRITE $rel  ROM 自带 $dsz 字节 -> 用模块 $ssz 字节覆盖"
+      fi
+      ;;
+  esac
   if [ -f "$dst" ] && [ ! -f "$FORCE_FLAG" ]; then
-    dsz=$(fsize "$dst")
-    log "KEEP  $rel  ROM 自带 $dsz 字节 / 模块 $ssz 字节, 内容不同 -> 保留原文件"
-    log "      需要强制覆盖: touch $FORCE_FLAG 然后重启"
-    return 3
+    case "$rel" in
+      palette/*|setting/*Palette*)
+        : # 跳过 KEEP 分支，直接走下面的覆盖写入
+        ;;
+      *)
+        dsz=$(fsize "$dst")
+        log "KEEP  $rel  ROM 自带 $dsz 字节 / 模块 $ssz 字节, 内容不同 -> 保留原文件"
+        log "      需要强制覆盖: touch $FORCE_FLAG 然后重启"
+        return 3
+        ;;
+    esac
   fi
 
   mkdir -p "${dst%/*}" 2>/dev/null
@@ -159,10 +177,28 @@ for k in HDR SDR; do
 done
 log "PRECHECK SC16Lut8 HDR/SDR = $LUT_SIZE 字节 OK"
 
+# post-fs-data 阶段 /odm 可能还没挂载完，等一下再动手
+# 最多等 20 次 * 0.5s = 10 秒
+i=0
+while [ ! -d "$DST" ] && [ "$i" -lt 20 ]; do
+  sleep 0.5 2>/dev/null || sleep 1
+  i=$((i + 1))
+done
 if [ -d "$DST" ]; then
-  log "INFO 目标目录已存在: $DST"
+  log "INFO 目标目录已存在: $DST (等待 $i 次后就绪)"
 else
-  log "INFO 目标目录不存在: $DST (首次部署会尝试创建)"
+  log "WARN 目标目录仍不存在: $DST —— /odm 可能未挂载，本次跳过写入"
+  log "     模块内资源仍在 $SRC，Magisk overlay 会在挂载时生效"
+  exit 0
+fi
+
+# 确认 /odm 真的是挂载点（防止空目录假象）
+if command -v mountpoint >/dev/null 2>&1; then
+  if mountpoint -q /odm 2>/dev/null; then
+    log "INFO /odm 已是挂载点"
+  else
+    log "WARN /odm 不是挂载点，继续尝试写入"
+  fi
 fi
 
 [ -f "$FORCE_FLAG" ] && log "INFO 检测到强制覆盖标记 $FORCE_FLAG"

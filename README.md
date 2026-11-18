@@ -124,6 +124,25 @@ adb reboot
 > 模块只以 LSPosed 模块形式存在。要看模块信息，去 LSPosed 管理器 →
 > 模块 →「调色盘强开」。
 
+## 本地自测（不需要真机）
+
+脚本逻辑可以在电脑上验证，避免刷机后才发现问题：
+
+```bash
+./tools/test_scripts.sh ./magisk
+```
+
+它会造一个隔离的桩环境（假 MODPATH、假 /odm、桩化 pm/sqlite3/getprop），
+实跑三个脚本并断言 14 项，包括：
+
+- `post-fs-data.sh` 写入 22 个文件、LUT/ini 内容字节级一致
+- `service.sh` 的 LSPosed 自动注册幂等（先删后插）
+- `customize.sh` 首次装/升级/尺寸异常/非 zip 四分支
+- `uninstall.sh` 卸载 APK 与删备份目录
+
+> 为什么需要：静态 review 发现不了 `INSERT OR IGNORE` 在无唯一约束表上
+> 不去重、`exit` 之后的死代码、`sed` 误替换子串这类问题，必须实跑。
+
 ## 需要什么
 
 - 已解锁 BL 并 root（本项目在 KernelSU + Zygisk Next + LSPosed 上验证）

@@ -6,8 +6,10 @@
 # ============================================================
 SKIPUNZIP=0
 
+MODVER=$(grep '^version=' "$MODPATH/module.prop" 2>/dev/null | cut -d= -f2)
+[ -z "$MODVER" ] && MODVER="unknown"
 ui_print "***********************************************"
-ui_print " palette_unlock 调色盘资源注入模块  v1.0"
+ui_print " palette_unlock 调色盘资源注入模块  $MODVER"
 ui_print " 目标: /odm/etc/camera/basictone/{palette,setting}"
 ui_print "***********************************************"
 
@@ -46,17 +48,49 @@ fi
 # ---- 0. 自动安装 LSPosed 模块 APK ----
 ui_print "- 安装 LSPosed 模块 PaletteUnlock"
 if [ -f "$MODPATH/PaletteUnlock.apk" ]; then
-  # 先卸载旧版，避免签名不一致
-  pm uninstall com.palette.unlock >/dev/null 2>&1 || true
-  if pm install -r "$MODPATH/PaletteUnlock.apk" >/dev/null 2>&1; then
-    ui_print "  LSPosed 模块已安装"
+  # APK 完整性预检：太小或不是 zip 就不折腾了
+  apk_sz=$(wc -c < "$MODPATH/PaletteUnlock.apk" 2>/dev/null | tr -d ' ')
+  if [ -z "$apk_sz" ] || [ "$apk_sz" -lt 100000 ] 2>/dev/null; then
+    ui_print "  ! APK 尺寸异常 ($apk_sz 字节)，跳过安装"
+  elif [ "$(head -c2 "$MODPATH/PaletteUnlock.apk")" != "PK" ]; then
+    ui_print "  ! APK 不是有效 zip，跳过安装"
   else
-    ui_print "  ! APK 安装失败，请手动安装 $MODPATH/PaletteUnlock.apk"
-  fi
-  # APK 装完后从模块目录移除，省空间（保留在 /data/adb/palette_unlock/ 备查）
+  # 先备一份到 /data，装失败时用户可手动装
   mkdir -p /data/adb/palette_unlock
-  cp -f "$MODPATH/PaletteUnlock.apk" /data/adb/palette_unlock/ 2>/dev/null || true
+  cp -f "$MODPATH/PaletteUnlock.apk" /data/adb/palette_unlock/PaletteUnlock.apk 2>/dev/null || true
+
+  # 已装过就用 -r 覆盖，【不要】先 uninstall —— 那会清掉 LSPosed 的
+  # modules_state 与 scope 两张表，导致模块"在列表里但没启用没作用域"
+  installed_before=0
+  if pm path com.palette.unlock >/dev/null 2>&1; then
+    installed_before=1
+  fi
+
+  if pm install -r "$MODPATH/PaletteUnlock.apk" >/dev/null 2>&1; then
+    if [ "$installed_before" = "1" ]; then
+      ui_print "  LSPosed 模块已更新（保留原有作用域配置）"
+    else
+      ui_print "  LSPosed 模块已安装"
+    fi
+  else
+    # 首次失败时再试一次卸载重装（仅当之前没装过）
+    if [ "$installed_before" = "0" ]; then
+      ui_print "  ! 首次安装失败，重试中..."
+      if pm install "$MODPATH/PaletteUnlock.apk" >/dev/null 2>&1; then
+        ui_print "  LSPosed 模块已安装（重试成功）"
+      else
+        ui_print "  ! APK 安装失败，重启后请手动安装:"
+        ui_print "    /data/adb/palette_unlock/PaletteUnlock.apk"
+      fi
+    else
+      ui_print "  ! APK 更新失败（通常是签名不一致），请先卸载旧版再刷一次"
+      ui_print "    备份: /data/adb/palette_unlock/PaletteUnlock.apk"
+    fi
+  fi
+
+  # 模块目录里不再保留 APK，省空间（副本已在 /data/adb/palette_unlock/）
   rm -f "$MODPATH/PaletteUnlock.apk"
+  fi
 else
   ui_print "  ! 模块内未找到 PaletteUnlock.apk"
 fi
