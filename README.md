@@ -30,17 +30,22 @@ PaletteRollingNumView                             id=palette_filter_strength_val
 
 ## 交付物
 
-### 推荐：一键包（无桌面图标）
+| 文件 | 说明 |
+|---|---|
+| **`release/palette_unlock_v1.2_allinone.zip`** | ⭐ **推荐**：一键包，1.1 MB。刷入即自动装模块 + 铺 LUT |
+| `release/PaletteUnlock_v1.1_hidden.apk` | 单独的无图标 LSPosed 模块（进阶用法） |
 
-```
-release/palette_unlock_v1.2_allinone.zip
-```
+### 一键包做了什么
 
-刷入这一个 zip 即可，它会：
-
-1. 自动安装 LSPosed 模块 `PaletteUnlock.apk`
+1. 自动安装 LSPosed 模块（**无桌面图标**）
 2. 铺入 18 个官方 3D LUT + 4 个 ini 到 `/odm/etc/camera/basictone/`
 3. 尝试自动注册 LSPosed 作用域
+
+```bash
+adb push palette_unlock_v1.2_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v1.2_allinone.zip'
+adb reboot
+```
 
 刷入后**硬重启**，若作用域未自动注册，在 LSPosed 管理器里给「调色盘强开」勾选
 `com.oplus.camera` 即可。
@@ -48,15 +53,6 @@ release/palette_unlock_v1.2_allinone.zip
 > **桌面不会有图标。** APK 的 manifest 去掉了 `LAUNCHER` intent-filter，
 > 模块只以 LSPosed 模块形式存在。要看模块信息，去 LSPosed 管理器 →
 > 模块 →「调色盘强开」。
-
-### 分开装（进阶）
-
-| 文件 | 说明 |
-|---|---|
-| `release/PaletteUnlock_v1.1_hidden.apk` | 仅 LSPosed 模块（无桌面图标）：开关强开 + 打桩 |
-| `release/palette_unlock_magisk_v1.0.zip` | 仅 Magisk 模块：18 个 LUT + 4 个 ini |
-
-想自己控制配置时用这个。
 
 ## 需要什么
 
