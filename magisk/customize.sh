@@ -13,7 +13,7 @@ ui_print " palette_unlock 调色盘资源注入模块  $MODVER"
 ui_print " 目标: /odm/etc/camera/basictone/{palette,setting}"
 ui_print "***********************************************"
 
-MODSRC="$MODPATH/system/odm/etc/camera/basictone"
+MODSRC="$MODPATH/odm/etc/camera/basictone"
 TARGET_ODM="/odm/etc/camera/basictone"
 LUT_SIZE=49152
 EXPECT_COUNT=22
@@ -42,7 +42,7 @@ setting/SimTool_Palette_Photo_Night.ini
 setting/SimTool_Preview_Palette_Normal.ini"
 
 if [ ! -d "$MODSRC" ]; then
-  abort "! 安装包结构异常: 未找到 system/odm/etc/camera/basictone"
+  abort "! 安装包结构异常: 未找到 odm/etc/camera/basictone"
 fi
 
 # ---- 0. 自动安装 LSPosed 模块 APK ----
@@ -139,7 +139,7 @@ done
 ui_print "- SC16Lut8 (HDR/SDR) 尺寸确认: $LUT_SIZE 字节 OK"
 
 # ---- 3. 权限与属主 ----
-set_perm_recursive "$MODPATH/system" 0 0 0755 0644
+set_perm_recursive "$MODPATH/odm" 0 0 0755 0644
 for s in customize.sh post-fs-data.sh service.sh uninstall.sh action.sh; do
   [ -f "$MODPATH/$s" ] && set_perm "$MODPATH/$s" 0 0 0755
 done

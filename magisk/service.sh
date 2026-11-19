@@ -8,7 +8,7 @@ MODDIR="${0%/*}"
 [ -z "$MODDIR" ] || [ "$MODDIR" = "$0" ] && MODDIR="/data/adb/modules/palette_unlock"
 [ -d "$MODDIR" ] || MODDIR="/data/adb/modules/palette_unlock"
 
-SRC="$MODDIR/system/odm/etc/camera/basictone"
+SRC="$MODDIR/odm/etc/camera/basictone"
 DST="/odm/etc/camera/basictone"
 LOG="/data/adb/palette_unlock.log"
 LUT_SIZE=49152

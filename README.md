@@ -28,7 +28,7 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.7 更新（当前版本）
+## v3.8 更新（当前版本）—— 分区挂载修复
 
 **这一版改变了根本思路。** 之前一直在往只读的 `/odm` 铺 LUT，
 但 **`CombineLutProcessUnitSDK.init` 收到的路径参数从来没变过**，
@@ -69,7 +69,7 @@ adb shell su -c 'sh /data/adb/modules/palette_unlock/action.sh'
 ## 交付物
 
 ```
-release/palette_unlock_v3.7_allinone.zip
+release/palette_unlock_v3.8_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -83,8 +83,8 @@ release/palette_unlock_v3.7_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.7_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.7_allinone.zip'
+adb push palette_unlock_v3.8_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.8_allinone.zip'
 adb reboot
 ```
 
