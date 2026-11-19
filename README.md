@@ -1,14 +1,52 @@
-# 一加 Ace 6T（PLR110 / SM8845）相机调色盘强开
+# oneplus-ace6t-palette-unlock
 
-> 本仓库由 DeepSeek Harness 生成。供研究与个人设备维护使用。改动有风险，务必先阅读回滚章节。
+**一加 Ace 6T（PLR110）相机调色盘解锁模块**
 
-针对 OnePlus Ace 6T 做了一件事：把这个机型 ROM 里**没有开放**的相机「调色盘（Palette）」功能打开，并在真机上验证可用。
+---
 
-Ace 6T 的 `/odm/etc/camera/basictone/` 下**根本没有 `palette/` 目录**，相机 APK 里的调色盘代码也依赖两个本机型不存在的 SDK 类。所以这个仓库做的是三件事：
+## ✅ v4.1 真机验证成功
 
-1. 把一加 15 / GT8 Pro 那批官方 3D LUT 资源移植过来（Magisk 模块）
-2. 用 LSPosed 模块强制打开能力位，并**打桩**绕过缺失的两个类
-3. 在真机上验证调色盘界面与调色功能确实可用
+```
+1. 模块版本:      v4.1
+2. 资源挂载:      overlay on /odm/etc/camera/basictone  ✅
+3. LUT 完整性:    18/18  ✅
+4. palette ini:   4/4    ✅
+5. LUT4 SHA:      45c26b247cc62abd  ✅（修复前是损坏数据）
+6. native 层:     iPaletteFlag = 1 + Palette process success!
+7. LSPosed:       模块在相机进程内正常 hook
+```
+
+---
+
+## 🔑 核心突破：tmpfs overlay
+
+`/odm` 是**只读 erofs**，无法 `cp`/`mkdir`，也无法直接 bind mount。
+
+**之前 47 个版本全部失败的根本原因就在这里。**
+
+### 可行的挂载方式
+
+```bash
+# 1. 复制资源到 tmpfs（/dev 是 tmpfs，不受 SELinux 上下文限制）
+cp -a "$SRC/." /dev/palette_src/
+
+# 2. 双 lowerdir overlay，无 upperdir
+mount -t overlay overlay \
+  -o "lowerdir=/dev/palette_src:/odm/etc/camera/basictone" \
+  /odm/etc/camera/basictone
+```
+
+### 试过的失败方案
+
+| 方案 | 结果 |
+|---|---|
+| `cp` 到 /odm | ❌ Read-only file system |
+| `bind mount` | ❌ 目标目录无法 mkdir |
+| overlay 到 `/odm/etc` | ❌ Invalid argument |
+| overlay lowerdir 用 `/data/adb/...` | ❌ Invalid argument（SELinux 上下文冲突） |
+| mountify 挂载 | ❌ busybox 被 OPPO secureguard_new 拦截 |
+
+---
 
 ## 结果
 
@@ -28,7 +66,7 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v3.8 更新（当前版本）—— 分区挂载修复
+## v4.1 更新（当前版本）—— 真机验证成功
 
 **这一版改变了根本思路。** 之前一直在往只读的 `/odm` 铺 LUT，
 但 **`CombineLutProcessUnitSDK.init` 收到的路径参数从来没变过**，
@@ -69,7 +107,7 @@ adb shell su -c 'sh /data/adb/modules/palette_unlock/action.sh'
 ## 交付物
 
 ```
-release/palette_unlock_v3.8_allinone.zip
+release/palette_unlock_v4.1_allinone.zip
 ```
 
 就这一个文件。刷入它即可。
@@ -83,8 +121,8 @@ release/palette_unlock_v3.8_allinone.zip
 ### 安装
 
 ```bash
-adb push palette_unlock_v3.8_allinone.zip /data/local/tmp/
-adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v3.8_allinone.zip'
+adb push palette_unlock_v4.1_allinone.zip /data/local/tmp/
+adb shell su -c 'ksud module install /data/local/tmp/palette_unlock_v4.1_allinone.zip'
 adb reboot
 ```
 

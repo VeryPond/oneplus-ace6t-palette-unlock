@@ -181,3 +181,85 @@ FilterMenuCanvas2D.initBasicToneConvertEnv() {
 ```
 
 hook3 把 ③ 的返回值强制 true，是让纹理能被创建的关键。
+
+---
+
+## 【2026-11-19 真机验证成功】tmpfs overlay 方案
+
+### 问题
+
+`/odm` 是只读 erofs：
+
+```
+/dev/block/dm-38 on /odm type erofs (ro,seclabel,relatime,...)
+touch: '/odm/test_write': Read-only file system
+```
+
+所以 `post-fs-data.sh` 里的 `cp` 全部失败：
+
+```
+WARN palette/HDR/SC16Lut0 目标分区不可写, 已回退到 Magisk overlay 生效
+（22 个文件全部如此）
+```
+
+### 试过的失败方案
+
+| 方案 | 结果 |
+|---|---|
+| `cp` 到 /odm | Read-only file system |
+| `bind mount` | 目标目录无法 mkdir |
+| overlay 到 `/odm/etc` | Invalid argument |
+| overlay lowerdir 用 `/data/adb/...` | Invalid argument（SELinux 上下文冲突） |
+| mountify 挂载 | busybox 被 OPPO secureguard_new 拦截 |
+
+### 关键发现
+
+```
+[secureguard_new][root_check]oplus_report_execveat_new,
+  common /data/adb/ksu/bin/busybox result execve_block
+```
+
+OPPO 的安全模块在 post-fs-data 阶段拦截 busybox，mountify 因此无法完成挂载。
+
+### 可行方案：tmpfs 中转
+
+```bash
+# 1. 复制资源到 tmpfs（/dev 是 tmpfs，不受 SELinux 上下文限制）
+cp -a "$SRC/." /dev/palette_src/
+
+# 2. 双 lowerdir overlay，无 upperdir
+mount -t overlay overlay \
+  -o "lowerdir=/dev/palette_src:/odm/etc/camera/basictone" \
+  /odm/etc/camera/basictone
+```
+
+**为什么这样能成：**
+- tmpfs 与目标上下文兼容
+- 两个 lowerdir 不需要 upperdir，不依赖 xattr
+- 不需要 mountify、不需要 ext4 镜像、不需要 busybox
+
+### 真机验证结果
+
+```
+mount: overlay on /odm/etc/camera/basictone type overlay
+       (lowerdir=/dev/palette_src:/odm/etc/camera/basictone)
+
+LUT 完整性: 18/18
+palette ini: 4/4
+LUT4 SHA: 45c26b247cc62abd  ✅ 与官方一致
+
+native 层:
+  Param_BasicTone_Base::BasicToneProcessNext: iPaletteFlag = 1
+  BasicTonePaletteProcessNext() Palette mode!
+  BasicTonePaletteMalloc() m_iPaletteMalloced = 1
+  fuseSCLut() SC4_5_7_8
+  BasicTonePaletteProcessNext() Palette process success!
+```
+
+### 认知修正
+
+之前判断「native 层 palette flag 不可达」是**错的**。
+
+实际是：**资源到位后，相机自己会把 `iPaletteFlag` 置为 1**，不需要 LSPosed 干预。
+
+之前所有版本失败的根本原因是资源没挂上，而不是 flag 打不开。

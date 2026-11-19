@@ -70,6 +70,8 @@ else
   log "RESULT LUT 未全部就位, 若属实请检查 magisk mount 与 /odm 挂载"
 fi
 log "---------------------------------------------------------------------"
+
+# ============================================================
 # LSPosed_scope_autoreg
 # 开机后自动把 com.palette.unlock 注册进 LSPosed 的 modules_state / scope
 # 这样用户不用手动去管理器里勾选作用域
