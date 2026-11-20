@@ -64,6 +64,62 @@ final class PaletteProcessUnitHook {
     static float[] sLastLut;
     static int sRenderCount;
     static int sG0Count;
+    static Object sPreserveStyleKey;
+    static Class<?> sStyleKeyClass;
+    static Class<?> sDataManagerClass;
+
+    /** 读「风格效果」保留开关；"on"=保留，"off"=不保留。默认 off。 */
+    static int sForceZeroCount;
+    static Object sU0Key;
+    static int sD1Count;
+    static int sFCount;
+    static int sXCount;
+
+    static boolean isPreserveStyleOn() {
+        try {
+            // 懒加载：首次调用时解析
+            if (sPreserveStyleKey == null) {
+                try {
+                    // 顺便解析 U0（调色持久化 key）
+                    try {
+                        Class<?> fcls = sLdmClass != null ? sLdmClass.loadClass("n9.f") : null;
+                        if (fcls != null) {
+                            for (java.lang.reflect.Field ff : fcls.getDeclaredFields()) {
+                                if ("U0".equals(ff.getName())) { ff.setAccessible(true); sU0Key = ff.get(null); break; }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                    Class<?> skc = sLdmClass != null ? sLdmClass.loadClass("n9.d") : null;
+                    if (skc != null) {
+                        for (java.lang.reflect.Field f : skc.getDeclaredFields()) {
+                            if ("Q2".equals(f.getName())) {
+                                f.setAccessible(true);
+                                sPreserveStyleKey = f.get(null);
+                                sDataManagerClass = sLdmClass.loadClass("com.oplus.camera.data.DataManager");
+                                XLog.i("风格效果 key 懒加载成功");
+                                break;
+                            }
+                        }
+                    }
+                } catch (Throwable t0) { XLog.w("风格效果 key 解析失败: " + t0); }
+            }
+            if (sPreserveStyleKey == null || sDataManagerClass == null) return false;
+            java.lang.reflect.Method getInstance = sDataManagerClass.getMethod("getInstance");
+            Object dm = getInstance.invoke(null);
+            if (dm == null) return false;
+            for (java.lang.reflect.Method m : sDataManagerClass.getMethods()) {
+                if (!"b".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length != 2 || ps[1] != Object.class) continue;
+                if (!ps[0].isInstance(sPreserveStyleKey)) continue;
+                Object v = m.invoke(dm, sPreserveStyleKey, "off");
+                return "on".equals(v);
+            }
+            return false;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
     private static int sFixCount;
     private static int sKFixCount;
     private static int sGCount;
@@ -833,6 +889,179 @@ final class PaletteProcessUnitHook {
                     XLog.i("hooked o0." + gname3 + "() [e0 创建条件]");
                 }
             } catch (Throwable tg0) { XLog.w("hook o0 fail: " + tg0); }
+
+            XLog.i(">>> 进入风格效果开关 hook 段");
+            // 风格效果开关：DataKey = n9/d.Q2，值 "on"/"off"
+            try {
+                // 延迟到首次使用时再解析，避免类加载时机问题
+                XLog.i("风格效果 switch 支持已注册(懒加载)");
+                n++;
+            } catch (Throwable tk) { XLog.w("风格效果注册失败: " + tk); }
+
+            XLog.i(">>> 进入 ag.u.d hook 段");
+            // ---- 让调色盘持久化受「风格效果」开关控制 ----
+            // ag/u.d(int tone, boolean flag, String str):
+            //   开关 off -> 把 tone 改成 0 再持久化（等效归零）
+            try {
+                Class<?> agu = cl.loadClass("ag.u");
+                for (final Method m : agu.getDeclaredMethods()) {
+                    if (!"d".equals(m.getName())) continue;
+                    Class<?>[] ps = m.getParameterTypes();
+                    if (ps.length != 3 || ps[0] != int.class || ps[1] != boolean.class
+                            || ps[2] != String.class) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            int tone = (Integer) chain.getArg(0);
+                            Object flag = chain.getArg(1);
+                            Object str = chain.getArg(2);
+                            if (!isPreserveStyleOn() && tone != 0) {
+                                if (sForceZeroCount < 10) {
+                                    XLog.i("风格效果=off, ag.u.d(" + tone + ") -> 传 0");
+                                    sForceZeroCount++;
+                                }
+                                // 用 proceed(Object[]) 重载传改后的参数
+                                return chain.proceed(new Object[] { Integer.valueOf(0), flag, str });
+                            }
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.u.d [风格效果开关控制]");
+                }
+            } catch (Throwable tagu) { XLog.w("hook ag.u 失败: " + tagu); }
+
+            // ---- 监控 ag.u.e(str) 退出调色盘是否归零 ----
+            try {
+                Class<?> agu2 = cl.loadClass("ag.u");
+                for (final Method m : agu2.getDeclaredMethods()) {
+                    if (!"e".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 1) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            XLog.i("★ ag.u.e() 被调用 [退出调色盘归零] arg=" + chain.getArg(0));
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.u.e [退出归零监控]");
+                }
+                // 监控 ag.u.c()
+                for (final Method m : agu2.getDeclaredMethods()) {
+                    if (!"c".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 0) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            XLog.i("★ ag.u.c() 被调用 [对比度退出]");
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.u.c [对比度退出监控]");
+                }
+            } catch (Throwable te) { XLog.w("hook ag.u.e/c 失败: " + te); }
+
+            // ---- 抓 d1.m(DataKey,...) 持久化写入，看谁写调色值 ----
+            try {
+                Class<?> d1c = cl.loadClass("com.oplus.camera.feature.aicomposition.inspiration.ui.d1");
+                for (final Method dm3 : d1c.getDeclaredMethods()) {
+                    if (!"m".equals(dm3.getName())) continue;
+                    Class<?>[] dp = dm3.getParameterTypes();
+                    if (dp.length != 4) continue;
+                    dm3.setAccessible(true);
+                    module.hook(dm3).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            Object k0 = chain.getArg(0);
+                            boolean isU0 = (k0 != null && sU0Key != null && k0 == sU0Key);
+                            if (isU0 && sD1Count < 8) {
+                                sD1Count++;
+                                StringBuilder sb = new StringBuilder("d1.m(U0) 写值=" + chain.getArg(3) + " 栈:");
+                                StackTraceElement[] se = new Throwable().getStackTrace();
+                                for (int i = 0; i < se.length && i < 9; i++) {
+                                    sb.append("\n    ").append(se[i].getClassName()).append(".").append(se[i].getMethodName());
+                                }
+                                XLog.i(sb.toString());
+                            }
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked d1.m [持久化写入监控]");
+                }
+            } catch (Throwable td1) { XLog.w("hook d1.m 失败: " + td1); }
+
+            // ---- 抓 ag.u.f(str) 恢复路径 ----
+            try {
+                Class<?> agu3 = cl.loadClass("ag.u");
+                for (final Method m : agu3.getDeclaredMethods()) {
+                    if (!"f".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 1) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            if (sFCount < 5) {
+                                sFCount++;
+                                StringBuilder sb = new StringBuilder("ag.u.f(恢复) str=" + chain.getArg(0) + " 栈:");
+                                StackTraceElement[] se = new Throwable().getStackTrace();
+                                for (int i = 0; i < se.length && i < 8; i++) {
+                                    sb.append("\n    ").append(se[i].getClassName()).append(".").append(se[i].getMethodName());
+                                }
+                                XLog.i(sb.toString());
+                            }
+                            // 开关 off 时，恢复值强制为 0（实现归零）
+                            if (!isPreserveStyleOn()) {
+                                if (sFCount <= 5) {
+                                    sFCount++;
+                                    XLog.i("ag.u.f 开关=off，恢复值强制 0（原始会读持久化值）");
+                                }
+                                // 先让原方法执行（读持久化值），再返回 0
+                                Object orig = chain.proceed();
+                                XLog.i("ag.u.f 原返回值=" + orig + " -> 返回 0");
+                                // 调用 a(0, false) 把 tone 归零
+                                try {
+                                    Method am = null;
+                                    for (Method mm : chain.getClass().getMethods()) {
+                                        if (!"proceed".equals(mm.getName()) || mm.getParameterCount() != 1) continue;
+                                        if (mm.getParameterTypes()[0] != Object[].class) continue;
+                                    }
+                                } catch (Throwable ignored) {}
+                                return 0;
+                            }
+                            Object r = chain.proceed();
+                            if (sFCount <= 5) XLog.i("ag.u.f 恢复值=" + r);
+                            return r;
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.u.f [恢复路径监控]");
+                }
+            } catch (Throwable tf2) { XLog.w("hook ag.u.f 失败: " + tf2); }
+
+            // ---- ag.x.f 饱和度恢复路径 ----
+            try {
+                Class<?> agx = cl.loadClass("ag.x");
+                for (final Method m : agx.getDeclaredMethods()) {
+                    if (!"f".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 1) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            if (!isPreserveStyleOn()) {
+                                if (sXCount < 5) {
+                                    sXCount++;
+                                    XLog.i("ag.x.f 开关=off，饱和度恢复值强制 0");
+                                }
+                                return 0;
+                            }
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.x.f [饱和度恢复路径]");
+                }
+            } catch (Throwable tx) { XLog.w("hook ag.x.f 失败: " + tx); }
 
             XLog.i("PaletteProcessUnitHook installed=" + n + "/3");
         } catch (Throwable t) {

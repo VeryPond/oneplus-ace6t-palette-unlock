@@ -77,12 +77,14 @@ final class Lut3dHook {
                 Object ldmInst = PaletteProcessUnitHook.sLdmInstance;
                 if (ldmInst == null) {
                     try {
-                        Class<?> holder = PaletteProcessUnitHook.sLdmClass != null ? PaletteProcessUnitHook.sLdmClass.loadClass("com.oplus.camera.common.utils.Lut3dDataManager$b") : Class.forName("com.oplus.camera.common.utils.Lut3dDataManager$b");
+                        Class<?> holder = PaletteProcessUnitHook.sLdmClass != null
+                                ? PaletteProcessUnitHook.sLdmClass.loadClass("com.oplus.camera.common.utils.Lut3dDataManager$b")
+                                : Class.forName("com.oplus.camera.common.utils.Lut3dDataManager$b");
                         java.lang.reflect.Field af = holder.getDeclaredField("a");
                         af.setAccessible(true);
                         ldmInst = af.get(null);
                         PaletteProcessUnitHook.sLdmInstance = ldmInst;
-                    } catch (Throwable singletonErr) { XLog.w("单例获取失败: " + singletonErr); }
+                    } catch (Throwable singletonErr) { /* 静默：走 sLastLut 路径 */ }
                 }
                 XLog.i("e() 后检查: gl=" + (PaletteProcessUnitHook.sGlInstance != null) + " ldm=" + (ldmInst != null));
                 if (PaletteProcessUnitHook.sGlInstance != null && ldmInst != null) {
