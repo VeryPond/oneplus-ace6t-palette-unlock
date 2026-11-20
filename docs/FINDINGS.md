@@ -316,3 +316,35 @@ CLH.process(0,0,0,0) -> mean=0.4999   // 中性 LUT，无调色
 | 改 `ag.u.d()` 无效 | `d()` 是**写入**动作，真正复活参数的是冷启动的 `f()` **读取** |
 | 装完新 APK 无日志 | `am start` 复用旧进程；必须 `am force-stop` + `pkill` |
 | `install()` 里直接 `cl.loadClass("n9.d")` | 会让后续 hook 全部中断，必须懒加载 |
+
+## v5.2 恢复 X10 原生行为（放弃强制归零）
+
+### 决策
+v5.1 尝试让调色盘参数受「设置 → 保留设置 → 风格效果」开关控制，**失败**。最终决定：**保持与 X10 完全一致的原生行为**，不干预持久化。
+
+### 失败原因（记录以免重蹈）
+| 尝试 | 结果 |
+|---|---|
+| hook `ag.u.d()` 改传 0 | ❌ 它是写入动作，不是复活点 |
+| hook `ag.u.f()` 返回 0 | ❌ 只改 UI 显示，内部 `a(100,false)` 已执行 |
+| hook `ag.u.b()` 静态读取返回 0 | ❌ 同样只影响显示 |
+| `DataManager.b(n9/d.Q2, "off")` | ❌ 读到的恒为 `on` |
+| 扫描 `n9/d` 全部 320 个 DataKey 字段 | ❌ 无字段对应 `pref_preserve_style_key` |
+| 扫描 `n9/a..j` 全部类 | ❌ 同上 |
+| `DataManager.findDataKey(String)` | ❌ 方法不存在 |
+
+### 根因
+「风格效果」开关的读取方式是 `CameraSwitchPreference.z("off")`，而它只是 `invoke-super Preference.z(String)`，读的是 **Preference 对象自己缓存的值**。该对象**只在设置页（`p2`）创建时加载**，相机主进程不持有它，因此运行时无法获取开关状态。
+
+### 当前行为
+- 调色盘参数**照常持久化**（与 X10 原生一致）
+- 补丁色表、LUT 处理、渲染链全部正常
+- 无任何强制归零 hook
+
+### 验证
+```
+归零逻辑残留: 0 条
+补丁色表可用: true
+hooked PaletteColors.get(String) -> stub recipe
+CLH.process(0,0,100,100) -> mean=0.5438
+```
