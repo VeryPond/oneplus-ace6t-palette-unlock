@@ -263,3 +263,56 @@ native 层:
 实际是：**资源到位后，相机自己会把 `iPaletteFlag` 置为 1**，不需要 LSPosed 干预。
 
 之前所有版本失败的根本原因是资源没挂上，而不是 flag 打不开。
+
+## v5.1 调色盘归零接入「风格效果」开关
+
+### 问题
+调色盘参数关闭相机后总是保留，不受设置里「设置 → 保留设置 → 风格效果」开关控制。
+
+### 开关定义
+| 项 | 值 |
+|---|---|
+| 界面文案 | `camera_setting_preserve_settings_style` |
+| 偏好键 | `OptionKey.KEY_PRESERVE_STYLE` = `pref_preserve_style_key` |
+| DataKey | `n9/d.Q2` |
+| 取值 | `"on"` / `"off"`，默认 `"off"` |
+| 读取 | `DataManager.getInstance().b(n9/d.Q2, "off")` |
+| 控件 | `CameraSettingPreferenceFragment(p2).Q2 : CameraSwitchPreference` |
+
+### 恢复调用链（关键）
+参数被保留的真正原因不是写入，而是**冷启动时被读回来**：
+
+```
+相机冷启动
+  → ag.r.onPreviewStageChanged
+    → dispatcherEventMessagePreviewRequestStage
+      → ag.r.A3()
+        ├─ if (!P2()) return
+        ├─ if (N2()) skip
+        ├─ v0 = c2()                          // 场景名，如 common_default_rear
+        ├─ ag.u.f(v0)  → 恢复 tone            // 持久化值 100
+        ├─ ag.x.f(v0)  → 恢复 saturation
+        └─ ag.v.d(v0, b2())                   // 其他参数
+```
+
+### 修复
+hook `ag.u.f(String)` 与 `ag.x.f(String)`，当开关为 `off` 时返回 `0`：
+
+```java
+if (!isPreserveStyleOn()) return 0;
+return chain.proceed();
+```
+
+### 验证证据
+```
+ag.u.f 原返回值=100 -> 返回 0
+ag.x.f 开关=off，饱和度恢复值强制 0
+CLH.process(0,0,0,0) -> mean=0.4999   // 中性 LUT，无调色
+```
+
+### 踩过的坑
+| 坑 | 说明 |
+|---|---|
+| 改 `ag.u.d()` 无效 | `d()` 是**写入**动作，真正复活参数的是冷启动的 `f()` **读取** |
+| 装完新 APK 无日志 | `am start` 复用旧进程；必须 `am force-stop` + `pkill` |
+| `install()` 里直接 `cl.loadClass("n9.d")` | 会让后续 hook 全部中断，必须懒加载 |
