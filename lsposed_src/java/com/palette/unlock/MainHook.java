@@ -73,7 +73,7 @@ public class MainHook extends XposedModule {
             } else if (which == 5) {
                 PaletteSeekbarFixHook.install(this, cl);
             } else if (which == 6) {
-                FilterSdkHook.install(this, cl);
+                // FilterSdkHook.install(this, cl);  // 实验：验证强制 isInited 是否为切滤镜黑屏元凶
             } else if (which == 7) {
                 IPUFeatureHook.install(this, cl);
             } else if (which == 8) {
@@ -82,6 +82,8 @@ public class MainHook extends XposedModule {
                 PathInjectHook.install(this, cl);
             } else if (which == 10) {
                 SupportFlagHook.install(this, cl);
+            } else if (which == 11) {
+                FilterParamHook.install(this, cl);
             }
         } catch (Throwable t) {
             XLog.w(name + " install fail", t);

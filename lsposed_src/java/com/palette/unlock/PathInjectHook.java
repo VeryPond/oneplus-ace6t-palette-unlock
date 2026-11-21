@@ -44,6 +44,14 @@ final class PathInjectHook {
             "SC16Lut5", "SC16Lut6", "SC16Lut7", "SC16Lut8"
     };
 
+    /** LMT（影调）LUT：/odm 的 lmt 目录在相机进程里不可列，改从 assets 解。 */
+    private static final String[] LMTS = { "BaseLut", "CWCM16Lut0", "CWCM16Lut1", "CWCM16Lut2", "CWCM16Lut3", "CWCM16Lut4", "CWCM16Lut5", "CWCM16Lut6", "CWCM16Lut7", "CWCM16Lut8", "CWCM32Lut0", "CWCM32Lut1", "CWCM32Lut2", "CWCM32Lut3", "CWCM32Lut4", "CWCM32Lut5", "CWCM32Lut6", "CWCM32Lut7", "CWCM32Lut8", "LMTLut0", "LMTLut1", "LMTLut2", "LMTLut3", "SC16Lut0", "SC16Lut1", "SC16Lut2", "SC16Lut3", "SC16Lut4", "SC16Lut5", "SC16Lut6", "SC16Lut7", "SC16Lut8", "SC32Lut0", "SC32Lut1", "SC32Lut2", "SC32Lut3", "SC32Lut4", "SC32Lut5", "SC32Lut6", "SC32Lut7", "SC32Lut8" };
+
+    /** ODT（影调/色调映射）LUT：/odm 的 odt 目录在相机进程里 listFiles 可能返回 null，改从 assets 解。 */
+    private static final String[] ODTS = {
+            "ODT_Pre", "ODT_Photo"
+    };
+
     /** palette 相关 ini。 */
     private static final String[] INIS = {
             "SimTool_Palette_Photo_Normal.ini",
@@ -55,6 +63,7 @@ final class PathInjectHook {
     private static String sSettingPath;
     private static String sPalettePath;
     private static String sOdtPath;
+    private static String sLmtPath;
     private static volatile boolean sDeployed;
     private static volatile int sAttempts;
     private static volatile int sLastCode = Integer.MIN_VALUE;
@@ -107,7 +116,8 @@ final class PathInjectHook {
             java.io.File hdr = new java.io.File(palette, "HDR");
             java.io.File sdr = new java.io.File(palette, "SDR");
             java.io.File odt = new java.io.File(root, "odt");
-            for (java.io.File d : new java.io.File[]{root, setting, palette, hdr, sdr, odt}) {
+            java.io.File lmt = new java.io.File(root, "lmt");
+            for (java.io.File d : new java.io.File[]{root, setting, palette, hdr, sdr, odt, lmt}) {
                 if (!d.exists() && !d.mkdirs()) {
                     XLog.w("PathInject: mkdirs fail " + d);
                 }
@@ -115,6 +125,7 @@ final class PathInjectHook {
             sSettingPath = setting.getAbsolutePath();
             sPalettePath = palette.getAbsolutePath();
             sOdtPath = odt.getAbsolutePath();
+            sLmtPath = lmt.getAbsolutePath();
 
             // ---- 1. 先把 /odm 的 setting 与 odt 复制过来（相机自己可读）----
             int sys1 = copyTree(new java.io.File(ODM, "setting"), setting);
@@ -144,6 +155,42 @@ final class PathInjectHook {
                         }
                         writeIfAbsent(new java.io.File(setting, name), data);
                         copied++;
+                    }
+                    // ---- 2a. LMT（影调）LUT 从 assets 解出 ----
+                    for (String name : LMTS) {
+                        byte[] data = readEntry(modZip, "assets/lmt/" + name);
+                        if (data == null || data.length < 1024) {
+                            XLog.w("PathInject: asset lmt 缺失/异常 " + name
+                                    + " (" + (data == null ? -1 : data.length) + ")");
+                            continue;
+                        }
+                        try {
+                            java.io.FileOutputStream fos =
+                                    new java.io.FileOutputStream(new java.io.File(lmt, name), false);
+                            fos.write(data);
+                            fos.close();
+                            copied++;
+                        } catch (Throwable tw) {
+                            XLog.w("PathInject: 写 lmt " + name + " 失败", tw);
+                        }
+                    }
+                    // ---- 2b. ODT LUT 也从 assets 解出（/odm 的 odt 在 app 进程里 listFiles 可能为 null）----
+                    for (String name : ODTS) {
+                        byte[] data = readEntry(modZip, "assets/odt/" + name);
+                        if (data == null || data.length < 1024) {
+                            XLog.w("PathInject: asset odt 缺失/异常 " + name
+                                    + " (" + (data == null ? -1 : data.length) + ")");
+                            continue;
+                        }
+                        try {
+                            java.io.FileOutputStream fos =
+                                    new java.io.FileOutputStream(new java.io.File(odt, name), false);
+                            fos.write(data);
+                            fos.close();
+                            copied++;
+                        } catch (Throwable tw) {
+                            XLog.w("PathInject: 写 odt " + name + " 失败", tw);
+                        }
                     }
                 } finally {
                     try { modZip.close(); } catch (Throwable ignored) {}
@@ -317,6 +364,7 @@ final class PathInjectHook {
                         if (sOdtMode >= 0 && sInitOk) {
                             Object[] a = new Object[6];
                             for (int i = 0; i < 6; i++) a[i] = chain.getArg(i);
+                            a[0] = sLmtPath;
                             a[1] = sOdtPath;
                             a[2] = sSettingPath;
                             a[5] = sPalettePath;
@@ -335,6 +383,7 @@ final class PathInjectHook {
                         for (int odt : ODT_CANDIDATES) {
                             Object[] a = new Object[6];
                             for (int i = 0; i < 6; i++) a[i] = chain.getArg(i);
+                            a[0] = sLmtPath;
                             a[1] = sOdtPath;
                             a[2] = sSettingPath;
                             a[5] = sPalettePath;

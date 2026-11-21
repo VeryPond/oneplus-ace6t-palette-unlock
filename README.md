@@ -4,7 +4,7 @@
 
 ---
 
-## ✅ v4.1 真机验证成功
+## ✅ v4.1 真机验证（历史里程碑）
 
 ```
 1. 模块版本:      v4.1
@@ -66,7 +66,68 @@ CameraPaletteFilterCOUISeekbar {471,372-801,442}  id=palette_filter_seekbar
 PaletteRollingNumView                             id=palette_filter_strength_value
 ```
 
-## v4.1 更新（当前版本）—— 真机验证成功
+## v6.8 更新（当前版本）—— 滤镜 + 影调全部修好
+
+**两个卡的很久的问题都在这一线解决了。**
+
+### ① 切滤镜必黑屏 → Meishe 滤镜库版本错配
+
+```
+/product/lib64/libMsEffectSdk.so      370264B   缺 nativeInitWithOptions 这个 JNI 符号
+/my_product/lib64/libMsEffectSdk.so   377968B   有这个符号（3 处）
+```
+
+相机进程静态地图确认它映射的是 `/product` 那份，于是
+`MeisheRender.initMsRenderUtil` 抛 `UnsatisfiedLinkError`，
+`IPU_MeisheFilterSdk: initMSContext failed` —— 滤镜 SDK 上下文从未初始化，
+一选滤镜就输出空帧（不崩溃、HAL 继续出帧、成片正常）。
+
+**修法**：把 `/my_product` 的正确版本 bind mount 到 `/product/lib64`，
+并做两层开机自愈（`post-fs-data.d` 早期 + `service.d` 晚期兜底）：
+
+```bash
+md5sum /product/lib64/libMsEffectSdk.so    # 应为 01ffc9546ea77019f17d9e340a121948
+```
+
+### ② 影调轴数值变、画面不变 → 三个问题叠加
+
+| # | 问题 | 修法 |
+|---|---|---|
+| 1 | 相机进程读不到 `/odm`（目录"不可列"），LMT/ODT LUT 没被加载 | 把 **LMT 41 个文件 + ODT 2 个文件也打进 APK assets**，并在 `CombineLutProcessUnitSDK.init(lmt,odt,setting,…)` hook 里把路径参数全指向 app 私有目录 |
+| 2 | `ag.u.d(tone,…)` 写入被 v5.1 的「风格效果开关」hook **强制改成 0** | 删除强制归零，只保留观测 |
+| 3 | 模块 ini 里 `LMT=0`（影调通道关着） | 改成 `[switch] LMT=1 / SC=1 / ODT=1` |
+
+日志证据（修复前 → 修复后）：
+
+```
+风格效果=off, ag.u.d(-17) -> 传 0                    ← 影调被抹成 0 才保存
+ag.u.d(57, true, common_fuji_cc.bin_rear) 放行（v6.7 不归零）
+```
+
+### 真机验证
+
+| 场景 | 编辑器 | 滤镜1 | 滤镜2 | 滤镜3 | crash | Meishe 报错 |
+|---|---|---|---|---|---|---|
+| 修复前 | 95.8 | **0.4** | **0.4** | — | 0 | 有 |
+| 修复后（重启后仍有效） | 103.8 | **89.6** | **108.8** | — | 0 | 无 |
+| v6.7 | 105.3 | **94.4** | **103.4** | **116.6** | 0 | 0 条 |
+
+（截图裁剪预览区 (60,400)-(1200,1700) 取 mean RGB；黑屏≈0.2~0.5，正常≈80~120）
+
+影调/饱和度/滤镜强度三轴均可调，柔光可切。
+
+### 交付物（v6.8）
+
+```
+release/palette_unlock_v6.8_allinone.zip   # 一体化模块（15.6MB，含 LMT/ODT 资源）
+release/PaletteUnlock_v6.8.apk             # 单独 LSPosed 模块 APK
+```
+
+完整实现逻辑见 **[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)**。
+
+---
+
+## v4.1 —— 历史（tmpfs overlay 突破）
 
 **这一版改变了根本思路。** 之前一直在往只读的 `/odm` 铺 LUT，
 但 **`CombineLutProcessUnitSDK.init` 收到的路径参数从来没变过**，
@@ -104,13 +165,15 @@ adb shell su -c 'sh /data/adb/modules/palette_unlock/action.sh'
 
 详细步骤见 **[docs/VERIFY.md](docs/VERIFY.md)**（真机验证手册）。
 
-## 交付物
+## 交付物（v6.8）
 
 ```
-release/palette_unlock_v4.1_allinone.zip
+release/palette_unlock_v6.8_allinone.zip   # 一体化模块（15.6MB，含 LMT/ODT 资源）
+release/PaletteUnlock_v6.8.apk             # 单独 LSPosed 模块 APK
 ```
 
-就这一个文件。刷入它即可。
+刷入一体包 + 重启即可（内含滤镜库修正与 LMT/ODT 资源）。
+历史版本：`release/palette_unlock_v4.1_allinone.zip`。
 
 ### 它做了什么
 

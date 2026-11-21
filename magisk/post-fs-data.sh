@@ -1,4 +1,20 @@
 #!/system/bin/sh
+# ===== v5.8 Meishe 滤镜库修正（切滤镜黑屏根因）=====
+# /product/lib64/libMsEffectSdk.so 是旧版（缺 nativeInitWithOptions JNI 符号），
+# /my_product/lib64 里那份才是新版；不换掉的话滤镜 SDK initMSContext 必失败 -> 预览黑帧。
+MEISHE_SRC=/my_product/lib64/libMsEffectSdk.so
+MEISHE_DST=/product/lib64/libMsEffectSdk.so
+MEISHE_GOOD=01ffc9546ea77019f17d9e340a121948
+MEISHE_LOG=/data/adb/meishe_lib_fix.log
+if [ -f "$MEISHE_SRC" ] && [ -f "$MEISHE_DST" ]; then
+  mcur=$(md5sum "$MEISHE_DST" 2>/dev/null | cut -d' ' -f1)
+  if [ "$mcur" != "$MEISHE_GOOD" ]; then
+    mount --bind "$MEISHE_SRC" "$MEISHE_DST" 2>>"$MEISHE_LOG"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') v5.8 bind: $mcur -> $(md5sum "$MEISHE_DST" 2>/dev/null | cut -d' ' -f1)" >> "$MEISHE_LOG"
+  fi
+fi
+# ================================================
+
 # ============================================================
 # palette_unlock / post-fs-data.sh
 # 用 overlay 把调色盘资源挂到只读的 /odm

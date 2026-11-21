@@ -348,3 +348,51 @@ v5.1 尝试让调色盘参数受「设置 → 保留设置 → 风格效果」�
 hooked PaletteColors.get(String) -> stub recipe
 CLH.process(0,0,100,100) -> mean=0.5438
 ```
+
+## v5.8 切滤镜黑屏根因：Meishe 滤镜库版本错配（已修）
+
+```
+/product/lib64/libMsEffectSdk.so      370264 B  md5 d90585ee...  nativeInitWithOptions 符号数 0
+/my_product/lib64/libMsEffectSdk.so   377968 B  md5 01ffc954...  nativeInitWithOptions 符号数 3
+```
+
+相机 maps 确认映射的是 /product 那份，于是：
+
+```
+D nativeloader: Load libMsEffectSdk.so ... ok
+E om.oplus.camera: No implementation found for long
+   com.meicam.effect.sdk.MsEffectSdkContextUtils.nativeInitWithOptions(int, java.util.Map)
+E IPU_MeisheFilterSdk: initMSContext failed
+E IPU_MeisheFilterSdk: java.lang.UnsatisfiedLinkError ...
+    at MsEffectSdkContextUtils.init(MsEffectSdkContextUtils.java:43)
+    at MeisheRender.initMsRenderUtil(MeisheRender.java:308)
+```
+
+滤镜 SDK 上下文从未初始化 → 选滤镜即空帧（不崩、HAL 出帧、成片正常）。
+修法：bind mount /my_product 版本到 /product/lib64 + post-fs-data.d 与 service.d 双层自愈。
+注意：OPCameraPro 模块自带的同款 so 也是坏的（370264B / 符号 0）。
+
+## v5.9 / v6.7 影调轴失效：三层问题
+
+1. **资源路径**：Lut3dDataManager 写死 /odm/etc/camera/basictone/{lmt,odt,setting}，但相机进程访问 /odm 时目录不可列 → LMT/ODT 从未加载。修法：LMT(41)+ODT(2) 打进 APK assets，init hook 改路径到 app 私有目录。
+2. **读取侧归零**（v5.9）：ag.u.f / ag.x.f 在「风格效果=off」时返回 0 → 饱和度轴被钉死。
+3. **写入侧归零**（v6.7）：ag.u.d(tone,flag,str) 在 off 时把 tone 改 0 再持久化 → 影调轴数值变但画面不变。
+
+```
+风格效果=off, ag.u.d(-17) -> 传 0
+```
+
+修复后：
+
+```
+ag.u.d(57, true, common_fuji_cc.bin_rear) 放行（v6.7 不归零）
+```
+
+## ini 开关
+
+影调需要 LMT/ODT 通道：[switch] LMT=1 / SC=1 / ODT=1（SC=饱和度，一直开）。
+
+## 不要碰的两条（会破坏预览）
+
+- debug.palette.forceupload=1：CLH 算完 LUT 后硬推 gl.s.v → 覆盖预览 LUT 槽位
+- debug.palette.forcet0=1：p() 里强置 k/i=true → 饱和度+影调双死

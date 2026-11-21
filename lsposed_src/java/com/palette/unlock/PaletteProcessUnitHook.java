@@ -60,6 +60,83 @@ final class PaletteProcessUnitHook {
     private static int sL2Calls;
     private static int sCLHCalls;
     static Object sLdmInstance;
+    private static int sUploadCalls;
+    private static boolean sDiaged;
+    private static final java.util.Map<String, Integer> sGlLog = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static int glLogInc(String k) {
+        Integer v = sGlLog.get(k);
+        int nv = (v == null ? 0 : v) + 1;
+        sGlLog.put(k, nv);
+        return nv;
+    }
+
+    /** 不依赖 SystemProperties 反射的 prop 读取（走 XLog 里已有的实现即可）。 */
+    /** 诊断：枚举 Lut3dDataManager 与 gl.s 的字段，找出单例挂在哪。 */
+    static void diagFields(ClassLoader cl) {
+        try {
+            Class<?> ldm = cl.loadClass("com.oplus.camera.common.utils.Lut3dDataManager");
+            XLog.i("DIAG === Lut3dDataManager 字段 ===");
+            dumpFields(ldm, "ldm");
+            for (Class<?> inner : ldm.getDeclaredClasses()) {
+                XLog.i("DIAG === inner " + inner.getName() + " ===");
+                dumpFields(inner, "inner");
+            }
+        } catch (Throwable t) { XLog.w("DIAG ldm fail", t); }
+        try {
+            if (sGlInstance != null) {
+                XLog.i("DIAG === gl.s 实例字段（类型含 Lut3d/DataManager 的）===");
+                for (java.lang.reflect.Field f : sGlInstance.getClass().getDeclaredFields()) {
+                    String tn = f.getType().getName();
+                    if (!tn.contains("Lut3d") && !tn.contains("DataManager") && !tn.contains("lut3d")) continue;
+                    f.setAccessible(true);
+                    Object v = null;
+                    try { v = f.get(sGlInstance); } catch (Throwable ignored) {}
+                    XLog.i("DIAG gl.s." + f.getName() + " : " + tn + " = " + v);
+                }
+                XLog.i("DIAG === gl.s 全部字段名/类型 ===");
+                StringBuilder sb = new StringBuilder();
+                for (java.lang.reflect.Field f : sGlInstance.getClass().getDeclaredFields()) {
+                    sb.append(f.getName()).append(':').append(f.getType().getSimpleName()).append(' ');
+                }
+                XLog.i("DIAG gl.s fields: " + sb);
+            }
+        } catch (Throwable t) { XLog.w("DIAG gl fail", t); }
+    }
+
+    private static void dumpFields(Class<?> c, String tag) {
+        for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+            boolean st = java.lang.reflect.Modifier.isStatic(f.getModifiers());
+            String val = "";
+            if (st) {
+                try {
+                    f.setAccessible(true);
+                    Object o = f.get(null);
+                    val = o == null ? "null" : String.valueOf(o);
+                    if (val.length() > 80) val = val.substring(0, 80) + "...";
+                } catch (Throwable ignored) { val = "?"; }
+            }
+            XLog.i("DIAG " + tag + " " + (st ? "static " : "") + f.getType().getName() + " " + f.getName() + " = " + val);
+        }
+    }
+
+    static int propInt(String k, int def) {
+        try {
+            Class<?> sp = Class.forName("android.os.SystemProperties");
+            Method g = sp.getMethod("get", String.class, String.class);
+            Object v = g.invoke(null, k, String.valueOf(def));
+            return Integer.parseInt(String.valueOf(v).trim());
+        } catch (Throwable t) {
+            return def;
+        }
+    }
+
+    static float meanOf(float[] a) {
+        if (a == null || a.length == 0) return 0f;
+        double s = 0;
+        for (float v : a) s += v;
+        return (float) (s / a.length);
+    }
     static ClassLoader sLdmClass;
     static float[] sLastLut;
     static int sRenderCount;
@@ -72,103 +149,54 @@ final class PaletteProcessUnitHook {
     static int sForceZeroCount;
     static Object sU0Key;
     static int sD1Count;
-    static volatile boolean sPreserveResolved;
-    static volatile boolean sPreserveValue = true;
-    static java.lang.reflect.Field sSwitchPrefField;  // 默认保留
+    static int sFCount;
+    static int sXCount;
 
     static boolean isPreserveStyleOn() {
-        if (sSwitchPrefField == null) return true;
-        if (sPreserveResolved) return sPreserveValue;
-        synchronized (PaletteProcessUnitHook.class) {
-            if (sPreserveResolved) return sPreserveValue;
-            try {
-                ClassLoader ldc = sLdmClass != null ? sLdmClass : sCl;
-                if (ldc == null) return true;
-                Class<?> p2Cls = ldc.loadClass("com.oplus.camera.setting.p2");
-                // 只处理 static 无参 f0 一次不够，须从已存实例读
-                XLog.i("isPreserveStyleOn: 等待 p2 实例");
-                for (Object inst : sP2Instances) {
-                    Object pref = sSwitchPrefField.get(inst);
-                    if (pref == null) continue;
-                    java.lang.reflect.Method z = pref.getClass().getMethod("z", String.class);
-                    Object v = z.invoke(pref, "off");
-                    boolean on = "on".equals(v);
-                    XLog.i("★ 风格效果开关.z(off) = " + v + " -> preserve=" + on);
-                    sPreserveValue = on;
-                    sPreserveResolved = true;
-                    return on;
-                }
-            } catch (Throwable t) {
-                XLog.w("isPreserveStyleOn 异常: " + t);
-            }
-            return sPreserveValue;
-        }
-    }
-
-    /** 注册 p2 实例（构造时调用） */
-    static final java.util.List<Object> sP2Instances =
-            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
-
-    static void hookP2Ctor(XposedModule module, ClassLoader cl, int[] counter) {
         try {
-            Class<?> p2Cls = cl.loadClass("com.oplus.camera.setting.p2");
-            for (final java.lang.reflect.Constructor<?> ctor : p2Cls.getDeclaredConstructors()) {
-                ctor.setAccessible(true);
-                module.hook(ctor).intercept(new XposedInterface.Hooker() {
-                    @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
-                        Object r = chain.proceed();
-                        if (r != null) { sP2Instances.add(r); }
-                        return r;
-                    }
-                });
-                counter[0]++;
-                XLog.i("hooked p2 构造器 [捕获设置页实例]");
-            }
-        } catch (Throwable t) { XLog.w("hookP2Ctor 失败: " + t); }
-    }
-
-    /** hook DataManager.b(DataKey,Object)，识别 pref_preserve_style_key 并更新 sPreserveValue */
-    static void installDataKeyHook(XposedModule module, ClassLoader cl, int[] counter) {
-        try {
-            final Class<?> dmCls = cl.loadClass("com.oplus.camera.data.DataManager");
-            final Class<?> dkCls = cl.loadClass("com.oplus.camera.data.DataKey");
-            final java.lang.reflect.Field cf = dkCls.getField("c");
-            cf.setAccessible(true);
-            int n = 0;
-            for (final Method m : dmCls.getDeclaredMethods()) {
-                Class<?>[] ps = m.getParameterTypes();
-                if (ps.length != 2) continue;
-                if (!ps[0].getName().contains("DataKey")) continue;
-                if (ps[1] != Object.class) continue;
-                m.setAccessible(true);
-                module.hook(m).intercept(new XposedInterface.Hooker() {
-                    @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
-                        Object r = chain.proceed();
-                        try {
-                            Object key = chain.getArg(0);
-                            if (key != null) {
-                                String ks = (String) cf.get(key);
-                                if ("pref_preserve_style_key".equals(ks)) {
-                                    boolean on = "on".equals(r);
-                                    if (on != sPreserveValue) {
-                                        sPreserveValue = on;
-                                        XLog.i("★ 风格效果开关 -> " + (on ? "on" : "off"));
-                                    }
-                                }
+            // 懒加载：首次调用时解析
+            if (sPreserveStyleKey == null) {
+                try {
+                    // 顺便解析 U0（调色持久化 key）
+                    try {
+                        Class<?> fcls = sLdmClass != null ? sLdmClass.loadClass("n9.f") : null;
+                        if (fcls != null) {
+                            for (java.lang.reflect.Field ff : fcls.getDeclaredFields()) {
+                                if ("U0".equals(ff.getName())) { ff.setAccessible(true); sU0Key = ff.get(null); break; }
                             }
-                        } catch (Throwable ignored) {}
-                        return r;
+                        }
+                    } catch (Throwable ignored) {}
+                    Class<?> skc = sLdmClass != null ? sLdmClass.loadClass("n9.d") : null;
+                    if (skc != null) {
+                        for (java.lang.reflect.Field f : skc.getDeclaredFields()) {
+                            if ("Q2".equals(f.getName())) {
+                                f.setAccessible(true);
+                                sPreserveStyleKey = f.get(null);
+                                sDataManagerClass = sLdmClass.loadClass("com.oplus.camera.data.DataManager");
+                                XLog.i("风格效果 key 懒加载成功");
+                                break;
+                            }
+                        }
                     }
-                });
-                n++;
+                } catch (Throwable t0) { XLog.w("风格效果 key 解析失败: " + t0); }
             }
-            counter[0]++;
-            XLog.i("hooked DataManager.b(DataKey,Object) x" + n + " [风格效果开关识别]");
+            if (sPreserveStyleKey == null || sDataManagerClass == null) return false;
+            java.lang.reflect.Method getInstance = sDataManagerClass.getMethod("getInstance");
+            Object dm = getInstance.invoke(null);
+            if (dm == null) return false;
+            for (java.lang.reflect.Method m : sDataManagerClass.getMethods()) {
+                if (!"b".equals(m.getName())) continue;
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length != 2 || ps[1] != Object.class) continue;
+                if (!ps[0].isInstance(sPreserveStyleKey)) continue;
+                Object v = m.invoke(dm, sPreserveStyleKey, "off");
+                return "on".equals(v);
+            }
+            return false;
         } catch (Throwable t) {
-            XLog.w("installDataKeyHook 失败: " + t);
+            return false;
         }
     }
-
     private static int sFixCount;
     private static int sKFixCount;
     private static int sGCount;
@@ -179,10 +207,7 @@ final class PaletteProcessUnitHook {
 
     private PaletteProcessUnitHook() {}
 
-    static ClassLoader sCl;
-
     static void install(XposedModule module, ClassLoader cl) {
-        sCl = cl;
         try {
             Class<?> cls = cl.loadClass(CLS);
             int n = 0;
@@ -692,7 +717,25 @@ final class PaletteProcessUnitHook {
                                         XLog.i(st.toString());
                                     }
                                 }
-                                if (ret instanceof float[]) sLastLut = (float[]) ret;
+                                if (ret instanceof float[]) {
+                                    sLastLut = (float[]) ret;
+                                    // v6.0 实验：影调(tone)重算出来的 LUT 没人上传，这里直接推给 gl.s
+                                    //   —— 只在 debug.palette.forceupload != 0 时生效
+                                    if (sGlInstance != null && propInt("debug.palette.forceupload", 0) != 0) {
+                                        try {
+                                            Method vM = sGlInstance.getClass().getMethod(
+                                                    "v", float[].class, int.class, boolean.class);
+                                            vM.invoke(sGlInstance, sLastLut, 64, true);
+                                            sUploadCalls++;
+                                            if (sUploadCalls <= 5 || sUploadCalls % 100 == 0) {
+                                                XLog.i("forceupload #" + sUploadCalls + " len=" + sLastLut.length
+                                                        + " mean=" + String.format("%.4f", meanOf(sLastLut)));
+                                            }
+                                        } catch (Throwable upErr) {
+                                            if (sUploadCalls < 3) XLog.w("forceupload fail", upErr);
+                                        }
+                                    }
+                                }
                                 sCLHCalls++;
                                 return ret;
                             }
@@ -713,8 +756,14 @@ final class PaletteProcessUnitHook {
                     module.hook(pm2).intercept(new XposedInterface.Hooker() {
                         @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
                             Object r = chain.proceed();
+                            if (!sDiaged) {
+                                sDiaged = true;
+                                XLog.i("DIAG p() 首次调用，开始枚举字段");
+                                diagFields(ldm2 != null ? ldm2.getClassLoader() : null);
+                            }
                             // 强制设 k=true，让渲染器应用 LUT
-                            if (sLdmInstance != null) {
+                            // v6.5: 默认关闭（置 k/i 并硬推 LUT 会覆盖预览 LUT 槽位，导致饱和度/影调全失效）
+                            if (sLdmInstance != null && propInt("debug.palette.forcet0", 0) != 0) {
                                 try {
                                     java.lang.reflect.Field kf = ldm2.getDeclaredField("k");
                                     kf.setAccessible(true);
@@ -950,6 +999,37 @@ final class PaletteProcessUnitHook {
                 n++;
             } catch (Throwable tk) { XLog.w("风格效果注册失败: " + tk); }
 
+            XLog.i(">>> 进入 ag.u.d hook 段");
+            // ---- 让调色盘持久化受「风格效果」开关控制 ----
+            // ag/u.d(int tone, boolean flag, String str):
+            //   开关 off -> 把 tone 改成 0 再持久化（等效归零）
+            try {
+                Class<?> agu = cl.loadClass("ag.u");
+                for (final Method m : agu.getDeclaredMethods()) {
+                    if (!"d".equals(m.getName())) continue;
+                    Class<?>[] ps = m.getParameterTypes();
+                    if (ps.length != 3 || ps[0] != int.class || ps[1] != boolean.class
+                            || ps[2] != String.class) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            int tone = (Integer) chain.getArg(0);
+                            Object flag = chain.getArg(1);
+                            Object str = chain.getArg(2);
+                            // v6.7: 不再把影调写成 0 —— 这个强制归零就是「影调轴数值变、画面不变」的直接原因。
+                            // 之前按 v5.1 的「风格效果开关」需求做的，但把调色盘自己的影调写路径也一起杀了。
+                            if (sForceZeroCount < 10) {
+                                sForceZeroCount++;
+                                XLog.i("ag.u.d(" + tone + ", " + flag + ", " + str + ") 放行（v6.7 不归零）");
+                            }
+                            return chain.proceed();
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.u.d [风格效果开关控制]");
+                }
+            } catch (Throwable tagu) { XLog.w("hook ag.u 失败: " + tagu); }
+
             // ---- 监控 ag.u.e(str) 退出调色盘是否归零 ----
             try {
                 Class<?> agu2 = cl.loadClass("ag.u");
@@ -1011,23 +1091,101 @@ final class PaletteProcessUnitHook {
                 }
             } catch (Throwable td1) { XLog.w("hook d1.m 失败: " + td1); }
 
-
-
-            // ---- 定位 p2.Q2（风格效果开关）并直接读值 ----
+            // ---- 抓 ag.u.f(str) 恢复路径 ----
             try {
-                Class<?> p2Cls = cl.loadClass("com.oplus.camera.setting.p2");
-                for (java.lang.reflect.Field f : p2Cls.getDeclaredFields()) {
-                    if (!"Q2".equals(f.getName())) continue;
-                    f.setAccessible(true);
-                    sSwitchPrefField = f;
-                    XLog.i("找到 p2.Q2 风格效果开关字段, 类型=" + f.getType().getName());
+                Class<?> agu3 = cl.loadClass("ag.u");
+                for (final Method m : agu3.getDeclaredMethods()) {
+                    if (!"f".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 1) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            if (sFCount < 5) {
+                                sFCount++;
+                                StringBuilder sb = new StringBuilder("ag.u.f(恢复) str=" + chain.getArg(0) + " 栈:");
+                                StackTraceElement[] se = new Throwable().getStackTrace();
+                                for (int i = 0; i < se.length && i < 8; i++) {
+                                    sb.append("\n    ").append(se[i].getClassName()).append(".").append(se[i].getMethodName());
+                                }
+                                XLog.i(sb.toString());
+                            }
+                            // v5.9: 按 v5.2 的决定「放弃强制归零」——只观测，不篡改返回值。
+                            // 之前这里在开关 off 时返回 0，会导致调色盘纵向(饱和度)轴被钉死。
+                            Object r = chain.proceed();
+                            if (sFCount <= 5) {
+                                sFCount++;
+                                XLog.i("ag.u.f 恢复值=" + r + " (v5.9 不强制归零)");
+                            }
+                            return r;
+                        }
+                    });
                     n++;
-                    break;
+                    XLog.i("hooked ag.u.f [恢复路径监控]");
                 }
-            } catch (Throwable tp) { XLog.w("定位 p2.Q2 失败: " + tp); }
+            } catch (Throwable tf2) { XLog.w("hook ag.u.f 失败: " + tf2); }
 
-            { int[] c = {0}; hookP2Ctor(module, cl, c); n += c[0]; }
-            { int[] c = {0}; installDataKeyHook(module, cl, c); n += c[0]; }
+            // ---- ag.x.f 饱和度恢复路径 ----
+            try {
+                Class<?> agx = cl.loadClass("ag.x");
+                for (final Method m : agx.getDeclaredMethods()) {
+                    if (!"f".equals(m.getName())) continue;
+                    if (m.getParameterTypes().length != 1) continue;
+                    m.setAccessible(true);
+                    module.hook(m).intercept(new XposedInterface.Hooker() {
+                        @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                            // v5.9: 不再强制饱和度归零（那会把调色盘纵向轴钉死），只观测
+                            Object xr = chain.proceed();
+                            if (sXCount < 5) {
+                                sXCount++;
+                                XLog.i("ag.x.f 饱和度恢复值=" + xr + " (v5.9 不强制归零)");
+                            }
+                            return xr;
+                        }
+                    });
+                    n++;
+                    XLog.i("hooked ag.x.f [饱和度恢复路径]");
+                }
+            } catch (Throwable tx) { XLog.w("hook ag.x.f 失败: " + tx); }
+
+            // ---- v6.6: 观测 gl.s 的所有上传/应用方法 + t0.G，定位影调走哪个槽 ----
+            try {
+                Class<?> glsCls = cl.loadClass("com.oplus.camera.common.gl.s");
+                for (final Method gm : glsCls.getDeclaredMethods()) {
+                    final String gn = gm.getName();
+                    if (!"v".equals(gn) && !"h0".equals(gn) && !"l0".equals(gn)
+                            && !"c0".equals(gn) && !"j0".equals(gn)) continue;
+                    try {
+                        gm.setAccessible(true);
+                        module.hook(gm).intercept(new XposedInterface.Hooker() {
+                            @Override public Object intercept(XposedInterface.Chain chain) throws Throwable {
+                                int c = glLogInc(gn);
+                                if (c <= 25 || c % 200 == 0) {
+                                    StringBuilder sb = new StringBuilder("GL " + gn + "#" + c + " args:");
+                                    for (int i = 0; i < 4; i++) {
+                                        Object a = null;
+                                        try { a = chain.getArg(i); } catch (Throwable stop) { break; }
+                                        if (a instanceof float[]) {
+                                            float[] fa = (float[]) a;
+                                            sb.append(" [").append(i).append("]=f[").append(fa.length)
+                                              .append("] mean=").append(String.format("%.4f", meanOf(fa)));
+                                        } else if (a instanceof int[]) {
+                                            sb.append(" [").append(i).append("]=i[").append(((int[]) a).length).append("]");
+                                        } else {
+                                            String s = String.valueOf(a);
+                                            if (s.length() > 70) s = s.substring(0, 70) + "...";
+                                            sb.append(" [").append(i).append("]=").append(s);
+                                        }
+                                    }
+                                    XLog.i(sb.toString());
+                                }
+                                return chain.proceed();
+                            }
+                        });
+                        n++;
+                    } catch (Throwable gerr) { XLog.w("hook gl.s." + gn + " fail", gerr); }
+                }
+                XLog.i("GL 观测器已安装");
+            } catch (Throwable g2) { XLog.w("gl 观测器安装失败", g2); }
 
             XLog.i("PaletteProcessUnitHook installed=" + n + "/3");
         } catch (Throwable t) {

@@ -1,0 +1,8 @@
+id=palette_unlock
+name=PaletteUnlock
+version=v5.5
+versionCode=38
+author=VeryPond
+description=Enable OnePlus Ace 6T camera palette (X10 full color-table port)
+minApiVersion=102
+targetApiVersion=102

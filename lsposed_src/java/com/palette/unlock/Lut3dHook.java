@@ -27,10 +27,12 @@ final class Lut3dHook {
     private static final String CLS = "com.oplus.camera.common.utils.Lut3dDataManager";
     private static int sLogged;
     private static int sForced;
+    private static ClassLoader sCl;
 
     private Lut3dHook() {}
 
     static void install(XposedModule module, ClassLoader cl) {
+        sCl = cl;
         int n = 0;
         try {
             Class<?> cls = cl.loadClass(CLS);
@@ -76,13 +78,26 @@ final class Lut3dHook {
                 // 从单例获取 Lut3dDataManager
                 Object ldmInst = PaletteProcessUnitHook.sLdmInstance;
                 if (ldmInst == null) {
+                     // 正确做法：从已加载的 Lut3dDataManager Class 上取内部类，再扫静态字段
+                    // （之前用 sLdmClass.loadClass / Class.forName 会因 classloader 不同拿不到）
                     try {
-                        Class<?> holder = PaletteProcessUnitHook.sLdmClass != null
-                                ? PaletteProcessUnitHook.sLdmClass.loadClass("com.oplus.camera.common.utils.Lut3dDataManager$b")
-                                : Class.forName("com.oplus.camera.common.utils.Lut3dDataManager$b");
-                        java.lang.reflect.Field af = holder.getDeclaredField("a");
-                        af.setAccessible(true);
-                        ldmInst = af.get(null);
+                        Class<?> ldmCls = sCl.loadClass("com.oplus.camera.common.utils.Lut3dDataManager");
+                        Outer:
+                        for (Class<?> holder : ldmCls.getDeclaredClasses()) {
+                            for (java.lang.reflect.Field f2 : holder.getDeclaredFields()) {
+                                if (!java.lang.reflect.Modifier.isStatic(f2.getModifiers())) continue;
+                                if (!ldmCls.isAssignableFrom(f2.getType())) continue;
+                                try {
+                                    f2.setAccessible(true);
+                                    Object v = f2.get(null);
+                                    if (v != null) {
+                                        ldmInst = v;
+                                        XLog.i("单例解析成功: " + holder.getSimpleName() + "." + f2.getName());
+                                        break Outer;
+                                    }
+                                } catch (Throwable ignored) {}
+                            }
+                        }
                         PaletteProcessUnitHook.sLdmInstance = ldmInst;
                     } catch (Throwable singletonErr) { /* 静默：走 sLastLut 路径 */ }
                 }
