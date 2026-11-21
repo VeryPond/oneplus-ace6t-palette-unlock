@@ -1,0 +1,26 @@
+# 强制脚本/文本用 LF（模块在 Android 上执行，CRLF 会导致 sh 语法错误）
+*.sh        text eol=lf
+*.prop      text eol=lf
+*.ini       text eol=lf
+*.xml       text eol=lf
+*.list      text eol=lf
+*.java      text eol=lf
+*.md        text eol=lf
+*.json      text eol=lf
+*.yaml      text eol=lf
+
+# 二进制
+*.apk       binary
+*.zip       binary
+*.dex       binary
+*.jks       binary
+*.so        binary
+*.img       binary
+
+# LUT 数据（无扩展名，不可当文本处理）
+lsposed_src/assets/palette/* binary
+lsposed_src/assets/lmt/* binary
+lsposed_src/assets/odt/* binary
+magisk/odm/etc/camera/basictone/palette/*/* binary
+magisk/odm/etc/camera/basictone/lmt/* binary
+magisk/odm/etc/camera/basictone/odt/* binary
